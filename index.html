@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget Bloom — Personal Budget Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #fef6f0;
+      --bg-card: #ffffff;
+      --bg-sidebar: #fff8f3;
+      --text: #3d2c2c;
+      --text-muted: #9b8a8a;
+      --text-light: #c4b0b0;
+      --accent: #e8a0bf;
+      --accent-hover: #d88aad;
+      --accent-light: #fce4ef;
+      --mint: #b8e6d0;
+      --mint-light: #e8f8f0;
+      --lavender: #c7b8ea;
+      --lavender-light: #ede8f8;
+      --peach: #f5c6a5;
+      --peach-light: #fef0e4;
+      --sky: #a8d4e6;
+      --sky-light: #e4f2f8;
+      --coral: #f0a8a8;
+      --coral-light: #fce8e8;
+      --yellow: #f0df8a;
+      --yellow-light: #fdf8e4;
+      --shadow-sm: 0 1px 3px rgba(61,44,44,0.06);
+      --shadow-md: 0 4px 12px rgba(61,44,44,0.08);
+      --shadow-lg: 0 8px 30px rgba(61,44,44,0.1);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --radius-xs: 6px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    h1, h2, h3, h4 { font-family: 'Nunito', sans-serif; }
+
+    /* ── LAYOUT ── */
+    .app { display: flex; min-height: 100vh; }
+
+    .sidebar {
+      width: 260px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid rgba(61,44,44,0.06);
+      padding: 28px 20px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      overflow-y: auto;
+      z-index: 100;
+    }
+
+    .main { flex: 1; margin-left: 260px; padding: 28px 32px; }
+
+    .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 36px; }
+    .logo-icon { font-size: 28px; }
+    .logo h1 { font-size: 20px; font-weight: 800; color: var(--text); }
+    .logo span { color: var(--accent); }
+
+    .nav-section { margin-bottom: 24px; }
+    .nav-section-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.12em; color: var(--text-light); margin-bottom: 10px; padding-left: 12px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      border-radius: var(--radius-sm); cursor: pointer; transition: all 0.2s;
+      font-size: 14px; font-weight: 500; color: var(--text-muted);
+    }
+    .nav-item:hover { background: var(--accent-light); color: var(--text); }
+    .nav-item.active { background: var(--accent-light); color: var(--accent-hover); font-weight: 600; }
+    .nav-item .icon { font-size: 18px; width: 24px; text-align: center; }
+
+    /* ── HEADER ── */
+    .page-header { margin-bottom: 28px; }
+    .page-header h2 { font-size: 26px; font-weight: 800; margin-bottom: 4px; }
+    .page-header p { color: var(--text-muted); font-size: 14px; }
+
+    /* ── STAT CARDS ── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--bg-card); border-radius: var(--radius); padding: 20px;
+      box-shadow: var(--shadow-sm); border: 1px solid rgba(61,44,44,0.04);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .stat-card .label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .stat-card .value { font-family: 'Nunito', sans-serif; font-size: 28px; font-weight: 800; }
+    .stat-card .sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .stat-card.pink { border-left: 4px solid var(--accent); }
+    .stat-card.pink .value { color: var(--accent-hover); }
+    .stat-card.mint { border-left: 4px solid var(--mint); }
+    .stat-card.mint .value { color: #5bb88a; }
+    .stat-card.lavender { border-left: 4px solid var(--lavender); }
+    .stat-card.lavender .value { color: #8a72c1; }
+    .stat-card.peach { border-left: 4px solid var(--peach); }
+    .stat-card.peach .value { color: #c48a5a; }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--bg-card); border-radius: var(--radius); padding: 24px;
+      box-shadow: var(--shadow-sm); border: 1px solid rgba(61,44,44,0.04); margin-bottom: 20px;
+    }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .card-title { font-size: 16px; font-weight: 700; }
+    .card-badge {
+      font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 600;
+    }
+
+    /* ── GRID LAYOUTS ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      background: var(--bg); padding: 10px 14px; text-align: left;
+      font-weight: 600; font-size: 11px; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted); border-bottom: 2px solid rgba(61,44,44,0.06);
+    }
+    tbody td {
+      padding: 12px 14px; border-bottom: 1px solid rgba(61,44,44,0.04);
+      vertical-align: middle;
+    }
+    tbody tr { transition: background 0.15s; }
+    tbody tr:hover { background: var(--accent-light); }
+    .amount { font-family: 'Nunito', sans-serif; font-weight: 700; }
+    .amount.negative { color: #d06060; }
+
+    .category-pill {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+    }
+
+    .review-flag {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: var(--yellow-light); color: #8a7a30; padding: 3px 8px;
+      border-radius: 12px; font-size: 11px; font-weight: 600;
+    }
+
+    /* ── CATEGORY BARS ── */
+    .category-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(61,44,44,0.04); }
+    .category-row:last-child { border-bottom: none; }
+    .category-name { width: 200px; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+    .category-bar-wrap { flex: 1; height: 10px; background: var(--bg); border-radius: 10px; overflow: hidden; }
+    .category-bar { height: 100%; border-radius: 10px; transition: width 0.6s ease; }
+    .category-amount { width: 100px; text-align: right; font-family: 'Nunito'; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+    .category-avg { width: 90px; text-align: right; font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
+
+    /* ── CREDIT CARD CARDS ── */
+    .cc-card {
+      padding: 18px; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 14px;
+      margin-bottom: 10px; transition: transform 0.15s;
+    }
+    .cc-card:hover { transform: translateX(4px); }
+    .cc-icon { font-size: 28px; width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+    .cc-info { flex: 1; }
+    .cc-name { font-weight: 700; font-size: 14px; }
+    .cc-amount { font-family: 'Nunito'; font-weight: 800; font-size: 18px; }
+    .cc-pct { font-size: 12px; color: var(--text-muted); }
+
+    /* ── FORM / MODAL ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(61,44,44,0.3);
+      backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--bg-card); border-radius: var(--radius); padding: 32px;
+      width: 560px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg);
+    }
+    .modal h3 { font-size: 20px; font-weight: 800; margin-bottom: 20px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: 12px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 6px;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px 14px; border: 1.5px solid rgba(61,44,44,0.1);
+      border-radius: var(--radius-sm); font-family: 'DM Sans'; font-size: 14px;
+      background: var(--bg); color: var(--text); transition: border-color 0.2s;
+      outline: none;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      border-color: var(--accent);
+    }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px;
+      border-radius: var(--radius-sm); border: none; cursor: pointer;
+      font-family: 'Nunito'; font-weight: 700; font-size: 14px; transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .btn-secondary { background: var(--bg); color: var(--text-muted); }
+    .btn-secondary:hover { background: rgba(61,44,44,0.06); }
+    .btn-sm { padding: 6px 14px; font-size: 12px; }
+
+    .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+    .checkbox-row { display: flex; align-items: center; gap: 8px; }
+    .checkbox-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+
+    /* ── THERAPY HIGHLIGHT ── */
+    .therapy-card {
+      background: linear-gradient(135deg, var(--lavender-light), var(--accent-light));
+      border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+    }
+    .therapy-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+    .therapy-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .therapy-item { text-align: center; }
+    .therapy-item .t-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+    .therapy-item .t-value { font-family: 'Nunito'; font-size: 24px; font-weight: 800; color: #8a72c1; }
+    .therapy-item .t-avg { font-size: 12px; color: var(--text-muted); }
+
+    /* ── TABS ── */
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--bg); padding: 4px; border-radius: var(--radius-sm); width: fit-content; }
+    .tab {
+      padding: 8px 16px; border-radius: var(--radius-xs); font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; color: var(--text-muted);
+    }
+    .tab.active { background: var(--bg-card); color: var(--text); box-shadow: var(--shadow-sm); }
+    .tab:hover:not(.active) { color: var(--text); }
+
+    /* ── SECTIONS (pages) ── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 1024px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; padding: 20px 16px; }
+      .stats-grid { grid-template-columns: 1fr; }
+      .therapy-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-in { animation: fadeIn 0.4s ease forwards; }
+
+    /* ── MANAGEMENT BUTTONS ── */
+    .btn-icon {
+      width: 28px; height: 28px; border-radius: 8px; border: none;
+      background: transparent; cursor: pointer; font-size: 13px;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: all 0.2s; color: var(--text-light);
+    }
+    .btn-icon:hover { background: var(--accent-light); color: var(--accent-hover); }
+    .btn-icon.danger:hover { background: var(--coral-light); color: #d06060; }
+    .btn-approve {
+      display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px;
+      border-radius: 8px; border: 1.5px solid var(--mint); background: var(--mint-light);
+      color: #5bb88a; font-size: 11px; font-weight: 700; cursor: pointer;
+      font-family: 'Nunito'; transition: all 0.2s;
+    }
+    .btn-approve:hover { background: var(--mint); color: white; }
+    .cat-header-actions { display: flex; gap: 8px; align-items: center; }
+    .cat-sub-actions { display: flex; gap: 2px; flex-shrink: 0; margin-left: auto; }
+    .group-header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 8px 12px; border-radius: 8px; }
+    .group-actions { display: flex; gap: 2px; align-items: center; }
+    .approve-info { background: var(--yellow-light); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; }
+    .approve-info strong { color: var(--text); }
+    .period-btn {
+      padding: 4px 10px; border-radius: 6px; border: 1.5px solid rgba(61,44,44,0.08);
+      background: var(--bg); color: var(--text-muted); font-family: 'Nunito'; font-size: 11px;
+      font-weight: 700; cursor: pointer; transition: all 0.2s;
+    }
+    .period-btn:hover { border-color: var(--accent); color: var(--accent-hover); }
+    .period-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(61,44,44,0.15); border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="logo">
+        <span class="logo-icon">🌸</span>
+        <h1>Budget<span>Bloom</span></h1>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Overview</div>
+        <div class="nav-item active" data-page="dashboard">
+          <span class="icon">📊</span> Dashboard
+        </div>
+        <div class="nav-item" data-page="transactions">
+          <span class="icon">📝</span> Transactions
+        </div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Breakdown</div>
+        <div class="nav-item" data-page="categories">
+          <span class="icon">🏷️</span> Categories
+        </div>
+        <div class="nav-item" data-page="cards">
+          <span class="icon">💳</span> Credit Cards
+        </div>
+        <div class="nav-item" data-page="therapy">
+          <span class="icon">💜</span> Therapy
+        </div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Period</div>
+        <div style="padding: 4px 12px;">
+          <div id="period-presets" style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px;">
+            <button class="period-btn" data-months="3">3M</button>
+            <button class="period-btn" data-months="6">6M</button>
+            <button class="period-btn active" data-months="12">12M</button>
+            <button class="period-btn" data-months="ytd">YTD</button>
+            <button class="period-btn" data-months="all">All</button>
+            <button class="period-btn" data-months="custom">Custom</button>
+          </div>
+          <div id="custom-range" style="display:none; margin-bottom:8px;">
+            <label style="font-size:10px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em;">From</label>
+            <input type="month" id="range-from" style="width:100%; padding:6px 8px; border:1.5px solid rgba(61,44,44,0.1); border-radius:6px; font-family:'DM Sans'; font-size:12px; background:var(--bg); margin-bottom:6px;" />
+            <label style="font-size:10px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em;">To</label>
+            <input type="month" id="range-to" style="width:100%; padding:6px 8px; border:1.5px solid rgba(61,44,44,0.1); border-radius:6px; font-family:'DM Sans'; font-size:12px; background:var(--bg);" />
+          </div>
+          <div id="period-label" style="font-size:11px; color:var(--text-muted); line-height:1.5;">
+            <strong id="period-range-text" style="color:var(--text); font-size:12px;">—</strong><br>
+            <span id="period-month-count">—</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+
+      <!-- ════ DASHBOARD PAGE ════ -->
+      <div class="page active" id="page-dashboard">
+        <div class="page-header">
+          <h2>Dashboard 🌷</h2>
+          <p>Your spending overview at a glance</p>
+        </div>
+
+        <div class="stats-grid" id="stats-grid"></div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Monthly Spending</span>
+            </div>
+            <canvas id="monthlyChart" height="200"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Category Breakdown</span>
+            </div>
+            <canvas id="categoryPieChart" height="200"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Recent Transactions</span>
+            <button class="btn btn-primary btn-sm" onclick="openModal()">+ Add Transaction</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Card</th>
+                  <th>Vendor</th>
+                  <th>Amount</th>
+                  <th>Category</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="recent-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ TRANSACTIONS PAGE ════ -->
+      <div class="page" id="page-transactions">
+        <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <h2>Transactions 📝</h2>
+            <p>All credit card & account charges</p>
+          </div>
+          <button class="btn btn-primary" onclick="openModal()">+ Add Transaction</button>
+        </div>
+
+        <div class="card" style="margin-bottom: 16px;">
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <select id="filter-card" onchange="renderTransactions()" style="padding:8px 12px; border:1.5px solid rgba(61,44,44,0.1); border-radius:8px; font-family:'DM Sans'; font-size:13px; background:var(--bg);">
+              <option value="">All Cards</option>
+            </select>
+            <select id="filter-category" onchange="renderTransactions()" style="padding:8px 12px; border:1.5px solid rgba(61,44,44,0.1); border-radius:8px; font-family:'DM Sans'; font-size:13px; background:var(--bg);">
+              <option value="">All Categories</option>
+            </select>
+            <select id="filter-month" onchange="renderTransactions()" style="padding:8px 12px; border:1.5px solid rgba(61,44,44,0.1); border-radius:8px; font-family:'DM Sans'; font-size:13px; background:var(--bg);">
+              <option value="">All Months</option>
+            </select>
+            <select id="filter-review" onchange="renderTransactions()" style="padding:8px 12px; border:1.5px solid rgba(61,44,44,0.1); border-radius:8px; font-family:'DM Sans'; font-size:13px; background:var(--bg);">
+              <option value="">All Status</option>
+              <option value="yes">Needs Review</option>
+              <option value="no">Approved / Categorized</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Card / Account</th>
+                  <th>Vendor / Merchant</th>
+                  <th>Amount</th>
+                  <th>Category</th>
+                  <th>Notes</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="txn-table"></tbody>
+            </table>
+          </div>
+          <div id="txn-empty" style="display:none; text-align:center; padding:48px; color:var(--text-muted);">
+            <div style="font-size:48px; margin-bottom:12px;">🌱</div>
+            <p style="font-size:14px;">No transactions yet. Click <strong>+ Add Transaction</strong> to get started!</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ CATEGORIES PAGE ════ -->
+      <div class="page" id="page-categories">
+        <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <h2>Categories 🏷️</h2>
+            <p>Manage and track spending per category</p>
+          </div>
+          <div class="cat-header-actions">
+            <button class="btn btn-secondary btn-sm" onclick="openGroupModal()">+ New Group</button>
+            <button class="btn btn-primary btn-sm" onclick="openCatModal()">+ Add Category</button>
+          </div>
+        </div>
+        <div class="card" id="categories-breakdown"></div>
+      </div>
+
+      <!-- ════ CREDIT CARDS PAGE ════ -->
+      <div class="page" id="page-cards">
+        <div class="page-header">
+          <h2>Credit Cards 💳</h2>
+          <p>Spending breakdown by card</p>
+        </div>
+        <div class="grid-2">
+          <div class="card" id="cards-list"></div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Card Distribution</span></div>
+            <canvas id="cardsPieChart" height="260"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ THERAPY PAGE ════ -->
+      <div class="page" id="page-therapy">
+        <div class="page-header">
+          <h2>Therapy Expenses 💜</h2>
+          <p>Combined therapy tracking for Kids & Health</p>
+        </div>
+        <div class="therapy-card" id="therapy-summary"></div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Therapy Transactions</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Card</th><th>Provider</th><th>Amount</th><th>Type</th></tr></thead>
+              <tbody id="therapy-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ════ ADD TRANSACTION MODAL ════ -->
+  <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <h3>🌸 Add Transaction</h3>
+      <form id="txn-form" onsubmit="return addTransaction(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="f-date" required />
+          </div>
+          <div class="form-group">
+            <label>Credit Card / Account</label>
+            <select id="f-card" required></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Vendor / Merchant</label>
+            <input type="text" id="f-vendor" placeholder="e.g. SAFEWAY, UBER" required />
+          </div>
+          <div class="form-group">
+            <label>Amount ($)</label>
+            <input type="number" id="f-amount" step="0.01" min="0" placeholder="0.00" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Category</label>
+            <select id="f-category" required></select>
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <input type="text" id="f-notes" placeholder="Optional notes..." />
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="checkbox-row">
+            <input type="checkbox" id="f-review" />
+            <label for="f-review" style="margin:0; text-transform:none; letter-spacing:0; font-size:13px; color:var(--text);">Flag for review (unsure about category)</label>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Transaction 🌸</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ════ CATEGORY MANAGEMENT MODAL ════ -->
+  <div class="modal-overlay" id="cat-modal-overlay" onclick="if(event.target===this)closeCatModal()">
+    <div class="modal" style="width:440px;">
+      <h3 id="cat-modal-title">🏷️ Add Category</h3>
+      <form id="cat-form" onsubmit="return saveCategoryForm(event)">
+        <div class="form-group">
+          <label>Group</label>
+          <select id="cf-group" required></select>
+        </div>
+        <div class="form-group">
+          <label>Category Name</label>
+          <input type="text" id="cf-name" placeholder="e.g. Subscriptions" required />
+        </div>
+        <input type="hidden" id="cf-mode" value="add" />
+        <input type="hidden" id="cf-old-name" value="" />
+        <input type="hidden" id="cf-old-group" value="" />
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeCatModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Category</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ════ NEW GROUP MODAL ════ -->
+  <div class="modal-overlay" id="group-modal-overlay" onclick="if(event.target===this)closeGroupModal()">
+    <div class="modal" style="width:400px;">
+      <h3>🌸 New Category Group</h3>
+      <form id="group-form" onsubmit="return saveGroupForm(event)">
+        <div class="form-group">
+          <label>Group Name</label>
+          <input type="text" id="gf-name" placeholder="e.g. Subscriptions & Services" required />
+        </div>
+        <div class="form-group">
+          <label>Color</label>
+          <select id="gf-color">
+            <option value="#a8d4e6">Sky Blue</option>
+            <option value="#e8a0bf">Pink</option>
+            <option value="#b8e6d0">Mint</option>
+            <option value="#c7b8ea">Lavender</option>
+            <option value="#f5c6a5">Peach</option>
+            <option value="#f0df8a">Yellow</option>
+            <option value="#f0a8a8">Coral</option>
+            <option value="#dbc4f0">Purple</option>
+            <option value="#d1d5db">Gray</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeGroupModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Group</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ════ REVIEW APPROVAL MODAL ════ -->
+  <div class="modal-overlay" id="approve-modal-overlay" onclick="if(event.target===this)closeApproveModal()">
+    <div class="modal" style="width:460px;">
+      <h3>✓ Approve Transaction</h3>
+      <div class="approve-info" id="approve-info"></div>
+      <div class="form-group">
+        <label>Category (change if needed)</label>
+        <select id="approve-category"></select>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <input type="text" id="approve-notes" placeholder="Optional notes..." />
+      </div>
+      <input type="hidden" id="approve-txn-id" value="" />
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="closeApproveModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmApproval()" style="background:var(--mint);color:white;">Approve ✓</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── DATA ──
+    const CREDIT_CARDS = ['Apple', 'Capital One Silver', 'Capital One Blue', 'Concora', 'Brightway', 'Wells Fargo'];
+    const ALL_MONTHS = ['Jun 2025','Jul 2025','Aug 2025','Sep 2025','Oct 2025','Nov 2025','Dec 2025','Jan 2026'];
+    const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    // ── DATE RANGE STATE ──
+    let activePreset = '12';
+    let MONTHS = [...ALL_MONTHS]; // default to all (which is <=12)
+    let rangeMonthCount = MONTHS.length;
+
+    function generateMonthRange(fromDate, toDate) {
+      const months = [];
+      const d = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+      const end = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
+      while (d <= end) {
+        months.push(MONTH_NAMES[d.getMonth()] + ' ' + d.getFullYear());
+        d.setMonth(d.getMonth() + 1);
+      }
+      return months;
+    }
+
+    function getDataDateRange() {
+      // Find earliest and latest dates from all data (including recurring)
+      const earliest = new Date('2025-06-01');
+      const latest = new Date('2026-01-31');
+      return { earliest, latest };
+    }
+
+    function applyDateRange(preset, customFrom, customTo) {
+      activePreset = preset;
+      const { earliest, latest } = getDataDateRange();
+      const now = latest; // use latest data date as "now"
+      let from, to;
+
+      if (preset === 'custom' && customFrom && customTo) {
+        from = new Date(customFrom + '-01');
+        to = new Date(customTo + '-01');
+      } else if (preset === 'all') {
+        from = earliest;
+        to = latest;
+      } else if (preset === 'ytd') {
+        from = new Date(now.getFullYear(), 0, 1); // Jan 1 of current data year
+        to = latest;
+      } else {
+        const monthCount = parseInt(preset);
+        to = latest;
+        from = new Date(to.getFullYear(), to.getMonth() - (monthCount - 1), 1);
+        if (from < earliest) from = earliest;
+      }
+
+      MONTHS = generateMonthRange(from, to);
+      rangeMonthCount = MONTHS.length;
+      updatePeriodLabel();
+      renderAll();
+    }
+
+    function updatePeriodLabel() {
+      if (MONTHS.length === 0) return;
+      const first = MONTHS[0];
+      const last = MONTHS[MONTHS.length - 1];
+      document.getElementById('period-range-text').textContent = `${first} — ${last}`;
+      document.getElementById('period-month-count').textContent = `${rangeMonthCount} month${rangeMonthCount !== 1 ? 's' : ''} tracked`;
+    }
+
+    function getFilteredTransactions() {
+      return transactions.filter(t => MONTHS.includes(t.month));
+    }
+
+    const DEFAULT_CATEGORIES = {
+      'Core Household': ['Mortgage','Utilities','Trash/Recycle','Internet','Landscaping','Home Alarm/Security','House Cleaning/Assistance','Car Payment (Toyota)','Travel Insurance'],
+      'Kids': ['School Tuition','School Lunch','School Fees & Supplies','Kids - Therapy','Extracurricular Activities/Entertainment','Childcare/Babysitting','Kids Clothing','Kids Medical'],
+      'Food': ['Groceries','Dining Out','Food Delivery'],
+      'Transportation': ['Rideshare'],
+      'Health & Wellness': ['Gym','Supplements','Medical Co-Pays/Prescriptions','Health - Therapy','Personal Care/Grooming'],
+      'Legal': ['Attorney Fees','Taxes'],
+      'Pets': ['Pets (Veterinary)'],
+      'Lifestyle': ['Clothing & Apparel','Entertainment','Travel'],
+      'Miscellaneous': ['Miscellaneous'],
+    };
+
+    let CATEGORIES = JSON.parse(localStorage.getItem('bb_categories') || 'null') || JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+
+    let GROUP_COLORS = JSON.parse(localStorage.getItem('bb_group_colors') || 'null') || {
+      'Core Household': '#a8d4e6',
+      'Kids': '#e8a0bf',
+      'Food': '#f0df8a',
+      'Transportation': '#c7b8ea',
+      'Health & Wellness': '#b8e6d0',
+      'Legal': '#f0a8a8',
+      'Pets': '#dbc4f0',
+      'Lifestyle': '#f5c6a5',
+      'Miscellaneous': '#d1d5db',
+    };
+
+    let FLAT_CATEGORIES = [];
+    function rebuildFlatCategories() {
+      FLAT_CATEGORIES = [];
+      Object.entries(CATEGORIES).forEach(([group, subs]) => subs.forEach(s => FLAT_CATEGORIES.push({ name: s, group })));
+    }
+    rebuildFlatCategories();
+
+    function saveCategories() {
+      localStorage.setItem('bb_categories', JSON.stringify(CATEGORIES));
+      localStorage.setItem('bb_group_colors', JSON.stringify(GROUP_COLORS));
+      rebuildFlatCategories();
+      refreshDropdowns();
+    }
+
+    const VENDOR_MAP = {
+      'PENTAGON FEDERAL':'Mortgage','PG&E':'Utilities','SF WATER':'Utilities','RECOLOGY':'Trash/Recycle',
+      'COMCAST':'Internet','JML LANDSCAPES':'Landscaping','VIVINT':'Home Alarm/Security',
+      'AGUIRRE GLORIA':'House Cleaning/Assistance','CHUBB':'Travel Insurance',
+      'TARRAH WAUSON':'Kids - Therapy','MANFREDI':'Kids - Therapy','SF MIND MATTERS':'Kids - Therapy',
+      'FABIOLA SEGURA':'School Lunch','STJOHNSCHOO':'School Lunch','ST JOHN SCHOOL':'School Fees & Supplies',
+      'PLAYSTATION':'Extracurricular Activities/Entertainment','PRIME VIDEO':'Extracurricular Activities/Entertainment',
+      'DAVE & BUSTERS':'Extracurricular Activities/Entertainment','CINEMARK':'Extracurricular Activities/Entertainment',
+      'GAMESTOP':'Extracurricular Activities/Entertainment','SARA SEGOVIA':'Childcare/Babysitting',
+      'SAFEWAY':'Groceries','COSTCO':'Groceries','INSTACART':'Groceries',
+      'CUPPA':'Dining Out','CHICK-FIL-A':'Dining Out','DOORDASH':'Food Delivery',
+      'UBER':'Rideshare','WAYMO':'Rideshare','MX3FITNESS':'Gym',
+      'ONE DENTAL':'Medical Co-Pays/Prescriptions','KAISER':'Medical Co-Pays/Prescriptions',
+      'DR. SARAH BRANDELL':'Health - Therapy','SEVEN HILLS':'Pets (Veterinary)',
+      'TOTAL WINE':'Entertainment','HIPCAMP':'Travel',
+      'CA FRANCHISE TAX':'Taxes','LAW OFFICES':'Attorney Fees',
+    };
+
+    // ── STATE ──
+    let transactions = JSON.parse(localStorage.getItem('bb_transactions') || '[]');
+
+    // Add recurring charges if not already present
+    function ensureRecurring() {
+      const hasRecurring = transactions.some(t => t.vendor === 'Toyota Car Payment (Recurring)');
+      if (hasRecurring) return;
+      ALL_MONTHS.forEach(m => {
+        const [mon, yr] = m.split(' ');
+        const monthNum = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(mon) + 1;
+        transactions.push({
+          id: 'r-car-' + m, date: `${yr}-${String(monthNum).padStart(2,'0')}-01`,
+          card: 'N/A (Recurring)', vendor: 'Toyota Car Payment (Recurring)',
+          amount: 961.81, category: 'Car Payment (Toyota)', notes: 'Not in statements — added automatically',
+          needsReview: false, month: m,
+        });
+      });
+      ['Aug 2025','Sep 2025','Oct 2025','Nov 2025','Dec 2025','Jan 2026'].forEach(m => {
+        const [mon, yr] = m.split(' ');
+        const monthNum = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(mon) + 1;
+        transactions.push({
+          id: 'r-tuition-' + m, date: `${yr}-${String(monthNum).padStart(2,'0')}-01`,
+          card: 'N/A (Recurring)', vendor: 'School Tuition (Recurring)',
+          amount: 2956.88, category: 'School Tuition', notes: 'Not in statements — added automatically',
+          needsReview: false, month: m,
+        });
+      });
+      save();
+    }
+
+    function save() { localStorage.setItem('bb_transactions', JSON.stringify(transactions)); }
+
+    function getMonth(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()] + ' ' + d.getFullYear();
+    }
+
+    function getGroup(category) {
+      const found = FLAT_CATEGORIES.find(c => c.name === category);
+      return found ? found.group : 'Miscellaneous';
+    }
+
+    function fmt(n) { return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+    // ── NAVIGATION ──
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        const page = item.dataset.page;
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('page-' + page).classList.add('active');
+        renderAll();
+      });
+    });
+
+    // ── MODAL ──
+    function openModal() { document.getElementById('modal-overlay').classList.add('active'); }
+    function closeModal() { document.getElementById('modal-overlay').classList.remove('active'); document.getElementById('txn-form').reset(); }
+
+    // ── ADD TRANSACTION ──
+    function addTransaction(e) {
+      e.preventDefault();
+      const txn = {
+        id: Date.now().toString(),
+        date: document.getElementById('f-date').value,
+        card: document.getElementById('f-card').value,
+        vendor: document.getElementById('f-vendor').value,
+        amount: parseFloat(document.getElementById('f-amount').value),
+        category: document.getElementById('f-category').value,
+        notes: document.getElementById('f-notes').value,
+        needsReview: document.getElementById('f-review').checked,
+        month: getMonth(document.getElementById('f-date').value),
+      };
+      transactions.push(txn);
+      save();
+      closeModal();
+      renderAll();
+    }
+
+    function deleteTransaction(id) {
+      transactions = transactions.filter(t => t.id !== id);
+      save();
+      renderAll();
+    }
+
+    // ── CATEGORY MANAGEMENT ──
+    function openCatModal(mode = 'add', groupName = '', catName = '') {
+      document.getElementById('cf-mode').value = mode;
+      document.getElementById('cf-old-name').value = catName;
+      document.getElementById('cf-old-group').value = groupName;
+      document.getElementById('cat-modal-title').textContent = mode === 'edit' ? '✏️ Edit Category' : '🏷️ Add Category';
+
+      const groupSelect = document.getElementById('cf-group');
+      groupSelect.innerHTML = '';
+      Object.keys(CATEGORIES).forEach(g => {
+        const o = document.createElement('option');
+        o.value = g; o.textContent = g;
+        if (g === groupName) o.selected = true;
+        groupSelect.appendChild(o);
+      });
+
+      document.getElementById('cf-name').value = catName;
+      document.getElementById('cat-modal-overlay').classList.add('active');
+    }
+
+    function closeCatModal() {
+      document.getElementById('cat-modal-overlay').classList.remove('active');
+      document.getElementById('cat-form').reset();
+    }
+
+    function saveCategoryForm(e) {
+      e.preventDefault();
+      const mode = document.getElementById('cf-mode').value;
+      const group = document.getElementById('cf-group').value;
+      const name = document.getElementById('cf-name').value.trim();
+      const oldName = document.getElementById('cf-old-name').value;
+      const oldGroup = document.getElementById('cf-old-group').value;
+
+      if (!name) return false;
+
+      if (mode === 'add') {
+        if (CATEGORIES[group].includes(name)) {
+          alert('This category already exists in ' + group);
+          return false;
+        }
+        CATEGORIES[group].push(name);
+      } else if (mode === 'edit') {
+        // Remove from old group
+        CATEGORIES[oldGroup] = CATEGORIES[oldGroup].filter(c => c !== oldName);
+        // Add to (possibly new) group
+        CATEGORIES[group].push(name);
+        // Update transactions that used the old name
+        transactions.forEach(t => { if (t.category === oldName) t.category = name; });
+        save();
+      }
+
+      saveCategories();
+      closeCatModal();
+      renderAll();
+      return false;
+    }
+
+    function deleteCategory(group, catName) {
+      const txnCount = transactions.filter(t => t.category === catName).length;
+      const msg = txnCount > 0
+        ? `Delete "${catName}"? ${txnCount} transaction(s) use this category and will be moved to "Miscellaneous".`
+        : `Delete "${catName}" from ${group}?`;
+      if (!confirm(msg)) return;
+
+      CATEGORIES[group] = CATEGORIES[group].filter(c => c !== catName);
+      if (txnCount > 0) {
+        transactions.forEach(t => { if (t.category === catName) t.category = 'Miscellaneous'; });
+        save();
+      }
+      saveCategories();
+      renderAll();
+    }
+
+    function openGroupModal() {
+      document.getElementById('group-modal-overlay').classList.add('active');
+    }
+
+    function closeGroupModal() {
+      document.getElementById('group-modal-overlay').classList.remove('active');
+      document.getElementById('group-form').reset();
+    }
+
+    function saveGroupForm(e) {
+      e.preventDefault();
+      const name = document.getElementById('gf-name').value.trim();
+      const color = document.getElementById('gf-color').value;
+      if (!name) return false;
+      if (CATEGORIES[name]) { alert('Group already exists!'); return false; }
+      CATEGORIES[name] = [];
+      GROUP_COLORS[name] = color;
+      saveCategories();
+      closeGroupModal();
+      renderAll();
+      return false;
+    }
+
+    function deleteGroup(groupName) {
+      const subs = CATEGORIES[groupName] || [];
+      const txnCount = transactions.filter(t => subs.includes(t.category)).length;
+      const msg = txnCount > 0
+        ? `Delete group "${groupName}" and its ${subs.length} categories? ${txnCount} transaction(s) will be moved to "Miscellaneous".`
+        : `Delete group "${groupName}" and its ${subs.length} categories?`;
+      if (!confirm(msg)) return;
+
+      if (txnCount > 0) {
+        transactions.forEach(t => { if (subs.includes(t.category)) t.category = 'Miscellaneous'; });
+        save();
+      }
+      delete CATEGORIES[groupName];
+      delete GROUP_COLORS[groupName];
+      saveCategories();
+      renderAll();
+    }
+
+    // ── REVIEW APPROVAL ──
+    let approvalTxnId = null;
+
+    function openApproveModal(txnId) {
+      const txn = transactions.find(t => t.id === txnId);
+      if (!txn) return;
+      approvalTxnId = txnId;
+
+      document.getElementById('approve-info').innerHTML =
+        `<strong>${txn.vendor}</strong> &mdash; ${fmt(txn.amount)}<br>
+         <span style="font-size:12px;color:var(--text-muted);">${new Date(txn.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} &bull; ${txn.card}</span>`;
+
+      // Populate category dropdown
+      const catSelect = document.getElementById('approve-category');
+      catSelect.innerHTML = '';
+      Object.entries(CATEGORIES).forEach(([group, subs]) => {
+        const og = document.createElement('optgroup');
+        og.label = group;
+        subs.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; og.appendChild(o); });
+        catSelect.appendChild(og);
+      });
+      catSelect.value = txn.category;
+
+      document.getElementById('approve-notes').value = txn.notes || '';
+      document.getElementById('approve-txn-id').value = txnId;
+      document.getElementById('approve-modal-overlay').classList.add('active');
+    }
+
+    function closeApproveModal() {
+      document.getElementById('approve-modal-overlay').classList.remove('active');
+      approvalTxnId = null;
+    }
+
+    function confirmApproval() {
+      const txnId = document.getElementById('approve-txn-id').value;
+      const txn = transactions.find(t => t.id === txnId);
+      if (!txn) return;
+
+      txn.category = document.getElementById('approve-category').value;
+      txn.notes = document.getElementById('approve-notes').value;
+      txn.needsReview = false;
+      save();
+      closeApproveModal();
+      renderAll();
+    }
+
+    // ── AUTO-CATEGORIZE ──
+    function autoCategory(vendor) {
+      const v = vendor.toUpperCase();
+      for (const [key, cat] of Object.entries(VENDOR_MAP)) {
+        if (v.includes(key.toUpperCase())) return cat;
+      }
+      return '';
+    }
+
+    // ── RENDER ──
+    function renderAll() {
+      renderStats();
+      renderRecentTable();
+      renderTransactions();
+      renderCategories();
+      renderCards();
+      renderTherapy();
+      renderCharts();
+    }
+
+    function renderStats() {
+      const filtered = getFilteredTransactions();
+      const total = filtered.reduce((s, t) => s + t.amount, 0);
+      const avg = rangeMonthCount > 0 ? total / rangeMonthCount : 0;
+      const reviewCount = filtered.filter(t => t.needsReview).length;
+      const txnCount = filtered.length;
+      const rangeLabel = MONTHS.length > 0 ? `${MONTHS[0]} — ${MONTHS[MONTHS.length - 1]}` : '—';
+
+      document.getElementById('stats-grid').innerHTML = `
+        <div class="stat-card pink animate-in">
+          <div class="label">Total Spending</div>
+          <div class="value">${fmt(total)}</div>
+          <div class="sub">${rangeLabel}</div>
+        </div>
+        <div class="stat-card mint animate-in" style="animation-delay:0.1s">
+          <div class="label">Monthly Average</div>
+          <div class="value">${fmt(avg)}</div>
+          <div class="sub">Across ${rangeMonthCount} month${rangeMonthCount !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="stat-card lavender animate-in" style="animation-delay:0.2s">
+          <div class="label">Transactions</div>
+          <div class="value">${txnCount}</div>
+          <div class="sub">${reviewCount} need review</div>
+        </div>
+        <div class="stat-card peach animate-in" style="animation-delay:0.3s">
+          <div class="label">Credit Cards</div>
+          <div class="value">6</div>
+          <div class="sub">+ recurring charges</div>
+        </div>
+      `;
+    }
+
+    function renderRecentTable() {
+      const sorted = [...getFilteredTransactions()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
+      const tbody = document.getElementById('recent-table');
+      tbody.innerHTML = sorted.map(t => `
+        <tr style="${t.needsReview ? 'background:var(--yellow-light);' : ''}">
+          <td>${new Date(t.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+          <td>${t.card}</td>
+          <td>${t.vendor}</td>
+          <td class="amount negative">${fmt(t.amount)}</td>
+          <td><span class="category-pill" style="background:${GROUP_COLORS[getGroup(t.category)] || '#eee'}30; color:${GROUP_COLORS[getGroup(t.category)] || '#999'}">${t.category}</span></td>
+          <td>${t.needsReview ? `<span class="review-flag">⚠️ Review</span> <button class="btn-approve" onclick="openApproveModal('${t.id}')">Approve</button>` : '<span style="color:var(--mint);font-size:12px;font-weight:600;">✓ Done</span>'}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderTransactions() {
+      const cardF = document.getElementById('filter-card').value;
+      const catF = document.getElementById('filter-category').value;
+      const monthF = document.getElementById('filter-month').value;
+      const reviewF = document.getElementById('filter-review').value;
+
+      let filtered = [...transactions];
+      if (cardF) filtered = filtered.filter(t => t.card === cardF);
+      if (catF) filtered = filtered.filter(t => t.category === catF);
+      if (monthF) filtered = filtered.filter(t => t.month === monthF);
+      if (reviewF === 'yes') filtered = filtered.filter(t => t.needsReview);
+      if (reviewF === 'no') filtered = filtered.filter(t => !t.needsReview);
+
+      filtered.sort((a, b) => b.date.localeCompare(a.date));
+
+      const tbody = document.getElementById('txn-table');
+      const empty = document.getElementById('txn-empty');
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+
+      tbody.innerHTML = filtered.map(t => `
+        <tr style="${t.needsReview ? 'background:var(--yellow-light);' : ''}">
+          <td>${new Date(t.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+          <td style="font-size:12px;">${t.card}</td>
+          <td>${t.vendor}</td>
+          <td class="amount negative">${fmt(t.amount)}</td>
+          <td><span class="category-pill" style="background:${GROUP_COLORS[getGroup(t.category)] || '#eee'}30; color:${GROUP_COLORS[getGroup(t.category)] || '#999'}">${t.category}</span></td>
+          <td style="font-size:12px; color:var(--text-muted); max-width:180px;">${t.notes || '—'}</td>
+          <td>${t.needsReview ? `<span class="review-flag">⚠️ Review</span> <button class="btn-approve" onclick="openApproveModal('${t.id}')">Approve</button>` : '<span style="color:var(--mint);font-size:12px;font-weight:600;">✓ Approved</span>'}</td>
+          <td>${!t.id.startsWith('r-') ? `<button class="btn btn-secondary btn-sm" onclick="deleteTransaction('${t.id}')" style="padding:4px 8px;font-size:11px;">✕</button>` : ''}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderCategories() {
+      const container = document.getElementById('categories-breakdown');
+      const fTxns = getFilteredTransactions();
+      const maxAmount = Math.max(...Object.keys(CATEGORIES).map(group =>
+        CATEGORIES[group].reduce((s, cat) => s + fTxns.filter(t => t.category === cat).reduce((ss, t) => ss + t.amount, 0), 0)
+      ), 1);
+
+      let html = '';
+      Object.entries(CATEGORIES).forEach(([group, subs]) => {
+        const groupTotal = subs.reduce((s, cat) => s + fTxns.filter(t => t.category === cat).reduce((ss, t) => ss + t.amount, 0), 0);
+        const isProtected = group === 'Miscellaneous';
+        html += `<div style="margin-bottom:20px;">`;
+        html += `<div class="group-header-bar" style="background:${GROUP_COLORS[group]}20;">`;
+        html += `<div style="display:flex;align-items:center;gap:8px;">`;
+        html += `<span style="font-weight:700;font-size:14px;">${group}</span>`;
+        html += `<button class="btn-icon" onclick="openCatModal('add','${group.replace(/'/g, "\\'")}')" title="Add category to ${group}">+</button>`;
+        html += `</div>`;
+        html += `<div style="display:flex;align-items:center;gap:8px;">`;
+        html += `<span style="font-family:'Nunito';font-weight:800;font-size:15px;">${fmt(groupTotal)}</span>`;
+        if (!isProtected) html += `<button class="btn-icon danger" onclick="deleteGroup('${group.replace(/'/g, "\\'")}')" title="Delete group">🗑</button>`;
+        html += `</div>`;
+        html += `</div>`;
+
+        subs.forEach(cat => {
+          const catTotal = fTxns.filter(t => t.category === cat).reduce((s, t) => s + t.amount, 0);
+          const pct = maxAmount > 0 ? (catTotal / maxAmount * 100) : 0;
+          const escapedCat = cat.replace(/'/g, "\\'");
+          const escapedGroup = group.replace(/'/g, "\\'");
+          html += `<div class="category-row">
+            <span class="category-name">${cat}</span>
+            <div class="category-bar-wrap"><div class="category-bar" style="width:${pct}%;background:${GROUP_COLORS[group]};"></div></div>
+            <span class="category-amount">${fmt(catTotal)}</span>
+            <span class="category-avg">${fmt(catTotal / rangeMonthCount)}/mo</span>
+            <div class="cat-sub-actions">
+              <button class="btn-icon" onclick="openCatModal('edit','${escapedGroup}','${escapedCat}')" title="Edit">✏️</button>
+              <button class="btn-icon danger" onclick="deleteCategory('${escapedGroup}','${escapedCat}')" title="Delete">✕</button>
+            </div>
+          </div>`;
+        });
+        html += `</div>`;
+      });
+
+      container.innerHTML = html;
+    }
+
+    function renderCards() {
+      const container = document.getElementById('cards-list');
+      const fTxns = getFilteredTransactions();
+      const allCards = [...CREDIT_CARDS, 'N/A (Recurring)'];
+      const cardIcons = { 'Apple': '🍎', 'Capital One Silver': '🥈', 'Capital One Blue': '🔵', 'Concora': '🟡', 'Brightway': '☀️', 'Wells Fargo': '🏦', 'N/A (Recurring)': '🔄' };
+      const cardColors = { 'Apple': 'var(--peach-light)', 'Capital One Silver': 'var(--sky-light)', 'Capital One Blue': 'var(--lavender-light)', 'Concora': 'var(--yellow-light)', 'Brightway': 'var(--mint-light)', 'Wells Fargo': 'var(--coral-light)', 'N/A (Recurring)': 'var(--bg)' };
+      const total = fTxns.reduce((s, t) => s + t.amount, 0);
+
+      let html = '<div class="card-header"><span class="card-title">Spending by Card</span></div>';
+      allCards.forEach(card => {
+        const cardTotal = fTxns.filter(t => t.card === card).reduce((s, t) => s + t.amount, 0);
+        if (cardTotal === 0) return;
+        const pct = total > 0 ? ((cardTotal / total) * 100).toFixed(1) : 0;
+        html += `<div class="cc-card" style="background:${cardColors[card] || 'var(--bg)'}">
+          <div class="cc-icon" style="background:white;font-size:22px;">${cardIcons[card] || '💳'}</div>
+          <div class="cc-info">
+            <div class="cc-name">${card}</div>
+            <div class="cc-pct">${pct}% of total</div>
+          </div>
+          <div class="cc-amount">${fmt(cardTotal)}</div>
+        </div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    function renderTherapy() {
+      const fTxns = getFilteredTransactions();
+      const kidsTherapy = fTxns.filter(t => t.category === 'Kids - Therapy');
+      const healthTherapy = fTxns.filter(t => t.category === 'Health - Therapy');
+      const kidsTotal = kidsTherapy.reduce((s, t) => s + t.amount, 0);
+      const healthTotal = healthTherapy.reduce((s, t) => s + t.amount, 0);
+      const allTotal = kidsTotal + healthTotal;
+      const mc = rangeMonthCount || 1;
+
+      document.getElementById('therapy-summary').innerHTML = `
+        <h3>💜 Therapy Expense Summary</h3>
+        <div class="therapy-grid">
+          <div class="therapy-item">
+            <div class="t-label">Kids Therapy</div>
+            <div class="t-value">${fmt(kidsTotal)}</div>
+            <div class="t-avg">${fmt(kidsTotal / mc)}/mo avg</div>
+          </div>
+          <div class="therapy-item">
+            <div class="t-label">Health Therapy</div>
+            <div class="t-value">${fmt(healthTotal)}</div>
+            <div class="t-avg">${fmt(healthTotal / mc)}/mo avg</div>
+          </div>
+          <div class="therapy-item">
+            <div class="t-label">Total Therapy</div>
+            <div class="t-value" style="color:var(--accent-hover);">${fmt(allTotal)}</div>
+            <div class="t-avg">${fmt(allTotal / mc)}/mo avg</div>
+          </div>
+        </div>
+      `;
+
+      const allTherapy = [...kidsTherapy, ...healthTherapy].sort((a, b) => b.date.localeCompare(a.date));
+      document.getElementById('therapy-table').innerHTML = allTherapy.map(t => `
+        <tr>
+          <td>${new Date(t.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+          <td>${t.card}</td>
+          <td>${t.vendor}</td>
+          <td class="amount negative">${fmt(t.amount)}</td>
+          <td><span class="category-pill" style="background:${t.category.includes('Kids') ? 'var(--accent-light)' : 'var(--mint-light)'}; color:${t.category.includes('Kids') ? 'var(--accent-hover)' : '#5bb88a'}">${t.category}</span></td>
+        </tr>
+      `).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">No therapy transactions recorded yet</td></tr>';
+    }
+
+    // ── CHARTS ──
+    let monthlyChart, categoryPieChart, cardsPieChart;
+
+    function renderCharts() {
+      // Monthly chart
+      const fTxns = getFilteredTransactions();
+      const monthlyData = MONTHS.map(m => fTxns.filter(t => t.month === m).reduce((s, t) => s + t.amount, 0));
+
+      if (monthlyChart) monthlyChart.destroy();
+      monthlyChart = new Chart(document.getElementById('monthlyChart'), {
+        type: 'bar',
+        data: {
+          labels: MONTHS,
+          datasets: [{
+            data: monthlyData,
+            backgroundColor: '#e8a0bf40',
+            borderColor: '#e8a0bf',
+            borderWidth: 2,
+            borderRadius: 8,
+            borderSkipped: false,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' }, grid: { color: 'rgba(61,44,44,0.04)' } },
+            x: { grid: { display: false } },
+          }
+        }
+      });
+
+      // Category pie
+      const groupTotals = Object.keys(CATEGORIES).map(g =>
+        CATEGORIES[g].reduce((s, c) => s + fTxns.filter(t => t.category === c).reduce((ss, t) => ss + t.amount, 0), 0)
+      ).filter(v => v > 0);
+      const groupLabels = Object.keys(CATEGORIES).filter((g, i) => {
+        const total = CATEGORIES[g].reduce((s, c) => s + fTxns.filter(t => t.category === c).reduce((ss, t) => ss + t.amount, 0), 0);
+        return total > 0;
+      });
+
+      if (categoryPieChart) categoryPieChart.destroy();
+      categoryPieChart = new Chart(document.getElementById('categoryPieChart'), {
+        type: 'doughnut',
+        data: {
+          labels: groupLabels,
+          datasets: [{ data: groupTotals, backgroundColor: groupLabels.map(g => GROUP_COLORS[g]), borderWidth: 0 }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'right', labels: { font: { size: 11, family: 'DM Sans' }, boxWidth: 12, padding: 8 } } }, cutout: '65%' }
+      });
+
+      // Cards pie
+      const cardTotals = CREDIT_CARDS.map(c => fTxns.filter(t => t.card === c).reduce((s, t) => s + t.amount, 0)).filter(v => v > 0);
+      const cardLabels = CREDIT_CARDS.filter((c, i) => fTxns.filter(t => t.card === c).reduce((s, t) => s + t.amount, 0) > 0);
+      const cardColors = ['#f5c6a5', '#a8d4e6', '#c7b8ea', '#f0df8a', '#b8e6d0', '#f0a8a8'];
+
+      if (cardsPieChart) cardsPieChart.destroy();
+      cardsPieChart = new Chart(document.getElementById('cardsPieChart'), {
+        type: 'doughnut',
+        data: {
+          labels: cardLabels,
+          datasets: [{ data: cardTotals, backgroundColor: cardColors.slice(0, cardLabels.length), borderWidth: 0 }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11, family: 'DM Sans' }, boxWidth: 12, padding: 8 } } }, cutout: '60%' }
+      });
+    }
+
+    // ── POPULATE DROPDOWNS ──
+    function populateDropdowns() {
+      // Form dropdowns
+      const cardSelect = document.getElementById('f-card');
+      cardSelect.innerHTML = '';
+      CREDIT_CARDS.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; cardSelect.appendChild(o); });
+
+      populateCategorySelect(document.getElementById('f-category'));
+
+      // Filter dropdowns
+      const filterCard = document.getElementById('filter-card');
+      filterCard.innerHTML = '<option value="">All Cards</option>';
+      CREDIT_CARDS.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; filterCard.appendChild(o); });
+      const ro = document.createElement('option'); ro.value = 'N/A (Recurring)'; ro.textContent = 'Recurring'; filterCard.appendChild(ro);
+
+      const filterCat = document.getElementById('filter-category');
+      filterCat.innerHTML = '<option value="">All Categories</option>';
+      Object.entries(CATEGORIES).forEach(([group, subs]) => {
+        const og = document.createElement('optgroup');
+        og.label = group;
+        subs.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; og.appendChild(o); });
+        filterCat.appendChild(og);
+      });
+
+      const filterMonth = document.getElementById('filter-month');
+      filterMonth.innerHTML = '<option value="">All Months</option>';
+      MONTHS.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; filterMonth.appendChild(o); });
+    }
+
+    function populateCategorySelect(select) {
+      select.innerHTML = '';
+      Object.entries(CATEGORIES).forEach(([group, subs]) => {
+        const og = document.createElement('optgroup');
+        og.label = group;
+        subs.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; og.appendChild(o); });
+        select.appendChild(og);
+      });
+    }
+
+    function refreshDropdowns() {
+      populateCategorySelect(document.getElementById('f-category'));
+      const filterCat = document.getElementById('filter-category');
+      const currentVal = filterCat.value;
+      filterCat.innerHTML = '<option value="">All Categories</option>';
+      Object.entries(CATEGORIES).forEach(([group, subs]) => {
+        const og = document.createElement('optgroup');
+        og.label = group;
+        subs.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; og.appendChild(o); });
+        filterCat.appendChild(og);
+      });
+      filterCat.value = currentVal;
+
+      // Refresh month filter
+      const filterMonth = document.getElementById('filter-month');
+      const currentMonth = filterMonth.value;
+      filterMonth.innerHTML = '<option value="">All Months</option>';
+      MONTHS.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; filterMonth.appendChild(o); });
+      filterMonth.value = currentMonth;
+    }
+
+    // ── AUTO-CATEGORY on vendor input ──
+    document.getElementById('f-vendor').addEventListener('blur', function() {
+      const cat = autoCategory(this.value);
+      if (cat) document.getElementById('f-category').value = cat;
+    });
+
+    // ── DATE RANGE PICKER ──
+    document.querySelectorAll('.period-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        const val = this.dataset.months;
+
+        if (val === 'custom') {
+          document.getElementById('custom-range').style.display = 'block';
+          return;
+        }
+        document.getElementById('custom-range').style.display = 'none';
+        applyDateRange(val);
+      });
+    });
+
+    document.getElementById('range-from').addEventListener('change', applyCustomRange);
+    document.getElementById('range-to').addEventListener('change', applyCustomRange);
+
+    function applyCustomRange() {
+      const from = document.getElementById('range-from').value;
+      const to = document.getElementById('range-to').value;
+      if (from && to) applyDateRange('custom', from, to);
+    }
+
+    // ── INIT ──
+    populateDropdowns();
+    ensureRecurring();
+    applyDateRange('12'); // default 12 months
+  </script>
+</body>
+</html>
