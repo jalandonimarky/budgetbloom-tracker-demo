@@ -1007,33 +1007,6 @@
     // ── STATE ──
     let transactions = JSON.parse(localStorage.getItem('bb_transactions') || '[]');
 
-    // Add recurring charges if not already present
-    const RECURRING_MONTHS = ['Jun 2025','Jul 2025','Aug 2025','Sep 2025','Oct 2025','Nov 2025','Dec 2025','Jan 2026'];
-    function ensureRecurring() {
-      const hasRecurring = transactions.some(t => t.vendor === 'Toyota Car Payment (Recurring)');
-      if (hasRecurring) return;
-      RECURRING_MONTHS.forEach(m => {
-        const [mon, yr] = m.split(' ');
-        const monthNum = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(mon) + 1;
-        transactions.push({
-          id: 'r-car-' + m, date: `${yr}-${String(monthNum).padStart(2,'0')}-01`,
-          card: 'N/A (Recurring)', vendor: 'Toyota Car Payment (Recurring)',
-          amount: 961.81, category: 'Car Payment (Toyota)', notes: 'Not in statements — added automatically',
-          needsReview: false, month: m,
-        });
-      });
-      ['Aug 2025','Sep 2025','Oct 2025','Nov 2025','Dec 2025','Jan 2026'].forEach(m => {
-        const [mon, yr] = m.split(' ');
-        const monthNum = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(mon) + 1;
-        transactions.push({
-          id: 'r-tuition-' + m, date: `${yr}-${String(monthNum).padStart(2,'0')}-01`,
-          card: 'N/A (Recurring)', vendor: 'School Tuition (Recurring)',
-          amount: 2956.88, category: 'School Tuition', notes: 'Not in statements — added automatically',
-          needsReview: false, month: m,
-        });
-      });
-      save();
-    }
 
     function save() { localStorage.setItem('bb_transactions', JSON.stringify(transactions)); }
 
@@ -1908,7 +1881,6 @@
 
     // ── INIT ──
     populateDropdowns();
-    ensureRecurring();
     applyDateRange('12'); // default 12 months
     updateSyncUI();
   </script>
