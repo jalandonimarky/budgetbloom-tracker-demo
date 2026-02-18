@@ -868,13 +868,12 @@
 
     // ── DATA ──
     const CREDIT_CARDS = ['Apple', 'Capital One Silver', 'Capital One Blue', 'Concora', 'Brightway', 'Wells Fargo'];
-    const ALL_MONTHS = ['Jun 2025','Jul 2025','Aug 2025','Sep 2025','Oct 2025','Nov 2025','Dec 2025','Jan 2026'];
     const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
     // ── DATE RANGE STATE ──
     let activePreset = '12';
-    let MONTHS = [...ALL_MONTHS]; // default to all (which is <=12)
-    let rangeMonthCount = MONTHS.length;
+    let MONTHS = [];
+    let rangeMonthCount = 0;
 
     function generateMonthRange(fromDate, toDate) {
       const months = [];
@@ -888,16 +887,22 @@
     }
 
     function getDataDateRange() {
-      // Find earliest and latest dates from all data (including recurring)
-      const earliest = new Date('2025-06-01');
-      const latest = new Date('2026-01-31');
-      return { earliest, latest };
+      if (transactions.length === 0) {
+        const now = new Date();
+        return { earliest: new Date(now.getFullYear(), now.getMonth(), 1), latest: now };
+      }
+      const dates = transactions.map(t => new Date(t.date + 'T00:00:00'));
+      const min = new Date(Math.min(...dates));
+      const max = new Date(Math.max(...dates));
+      return {
+        earliest: new Date(min.getFullYear(), min.getMonth(), 1),
+        latest: new Date(max.getFullYear(), max.getMonth(), 1)
+      };
     }
 
-    function applyDateRange(preset, customFrom, customTo) {
-      activePreset = preset;
+    function computeDateRange(preset, customFrom, customTo) {
       const { earliest, latest } = getDataDateRange();
-      const now = latest; // use latest data date as "now"
+      const now = latest;
       let from, to;
 
       if (preset === 'custom' && customFrom && customTo) {
@@ -907,7 +912,7 @@
         from = earliest;
         to = latest;
       } else if (preset === 'ytd') {
-        from = new Date(now.getFullYear(), 0, 1); // Jan 1 of current data year
+        from = new Date(now.getFullYear(), 0, 1);
         to = latest;
       } else {
         const monthCount = parseInt(preset);
@@ -919,6 +924,11 @@
       MONTHS = generateMonthRange(from, to);
       rangeMonthCount = MONTHS.length;
       updatePeriodLabel();
+    }
+
+    function applyDateRange(preset, customFrom, customTo) {
+      activePreset = preset;
+      computeDateRange(preset, customFrom, customTo);
       renderAll();
     }
 
@@ -998,10 +1008,11 @@
     let transactions = JSON.parse(localStorage.getItem('bb_transactions') || '[]');
 
     // Add recurring charges if not already present
+    const RECURRING_MONTHS = ['Jun 2025','Jul 2025','Aug 2025','Sep 2025','Oct 2025','Nov 2025','Dec 2025','Jan 2026'];
     function ensureRecurring() {
       const hasRecurring = transactions.some(t => t.vendor === 'Toyota Car Payment (Recurring)');
       if (hasRecurring) return;
-      ALL_MONTHS.forEach(m => {
+      RECURRING_MONTHS.forEach(m => {
         const [mon, yr] = m.split(' ');
         const monthNum = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(mon) + 1;
         transactions.push({
@@ -1368,6 +1379,8 @@
 
     // ── RENDER ──
     function renderAll() {
+      // Recompute MONTHS from current transaction data so new months are included
+      computeDateRange(activePreset);
       renderStats();
       renderRecentTable();
       renderTransactions();
