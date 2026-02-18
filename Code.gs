@@ -5,6 +5,7 @@
 
 // ── TRANSACTION COLUMNS ──
 const TXN_COLS = ['id', 'date', 'card', 'vendor', 'amount', 'category', 'notes', 'needsReview', 'declined', 'month'];
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function getSheet(name) {
   return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
@@ -13,6 +14,29 @@ function getSheet(name) {
 function respond(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── HELPERS ──
+
+function formatDate(val) {
+  if (val instanceof Date) {
+    return val.getFullYear() + '-' + String(val.getMonth() + 1).padStart(2, '0') + '-' + String(val.getDate()).padStart(2, '0');
+  }
+  var s = String(val);
+  // If already YYYY-MM-DD, return as-is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // Try parsing as date string
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  return s;
+}
+
+function dateToMonth(dateStr) {
+  var d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  return MONTH_NAMES[d.getMonth()] + ' ' + d.getFullYear();
 }
 
 // ── WEB APP ENDPOINTS ──
@@ -57,10 +81,20 @@ function loadAllData() {
       if (!row[0]) return;
       const txn = {};
       TXN_COLS.forEach((col, i) => {
-        if (col === 'amount') txn[col] = Number(row[i]);
-        else if (col === 'needsReview' || col === 'declined') txn[col] = (row[i] === true || row[i] === 'TRUE' || row[i] === 'true');
-        else txn[col] = String(row[i]);
+        if (col === 'id') {
+          txn[col] = String(row[i]);
+        } else if (col === 'date') {
+          txn[col] = formatDate(row[i]);
+        } else if (col === 'amount') {
+          txn[col] = Number(row[i]) || 0;
+        } else if (col === 'needsReview' || col === 'declined') {
+          txn[col] = (row[i] === true || row[i] === 'TRUE' || row[i] === 'true');
+        } else {
+          txn[col] = String(row[i]);
+        }
       });
+      // Always recalculate month from date to ensure consistency
+      txn.month = dateToMonth(txn.date);
       transactions.push(txn);
     });
   }
@@ -80,7 +114,7 @@ function addTransactionRow(data) {
   const sheet = getSheet('Transactions');
   const row = TXN_COLS.map(col => {
     if (col === 'needsReview' || col === 'declined') return data[col] ? 'TRUE' : 'FALSE';
-    return data[col] !== undefined ? data[col] : '';
+    return data[col] !== undefined ? String(data[col]) : '';
   });
   sheet.appendRow(row);
   return { success: true, id: data.id };
@@ -95,7 +129,7 @@ function updateTransactionRow(data) {
     if (String(ids[i][0]) === String(data.id)) {
       const row = TXN_COLS.map(col => {
         if (col === 'needsReview' || col === 'declined') return data[col] ? 'TRUE' : 'FALSE';
-        return data[col] !== undefined ? data[col] : '';
+        return data[col] !== undefined ? String(data[col]) : '';
       });
       sheet.getRange(i + 2, 1, 1, TXN_COLS.length).setValues([row]);
       return { success: true, id: data.id };
@@ -128,14 +162,16 @@ function syncAllData(payload) {
     sheet.deleteRows(2, sheet.getLastRow() - 1);
   }
 
-  // Write all transactions
+  // Write all transactions as plain strings to prevent Sheets auto-formatting
   const txns = payload.transactions || [];
   if (txns.length > 0) {
     const rows = txns.map(t => TXN_COLS.map(col => {
       if (col === 'needsReview' || col === 'declined') return t[col] ? 'TRUE' : 'FALSE';
-      return t[col] !== undefined ? t[col] : '';
+      return t[col] !== undefined ? String(t[col]) : '';
     }));
-    sheet.getRange(2, 1, rows.length, TXN_COLS.length).setValues(rows);
+    const range = sheet.getRange(2, 1, rows.length, TXN_COLS.length);
+    range.setNumberFormat('@'); // Force plain text to prevent date auto-conversion
+    range.setValues(rows);
   }
 
   // Save categories and colors
@@ -172,6 +208,9 @@ function initialSetup() {
     .setFontColor('#f1f5f9');
   txnSheet.setFrozenRows(1);
 
+  // Force all data columns to plain text to prevent auto-formatting
+  txnSheet.getRange('A2:J').setNumberFormat('@');
+
   const widths = [160, 110, 150, 220, 100, 200, 200, 100, 100, 100];
   widths.forEach((w, i) => txnSheet.setColumnWidth(i + 1, w));
 
@@ -191,7 +230,7 @@ function initialSetup() {
   }
 
   SpreadsheetApp.getUi().alert(
-    '✅ BudgetBloom database is ready!\n\n' +
+    'BudgetBloom database is ready!\n\n' +
     'Next step: Deploy as Web App\n' +
     '1. Click Deploy > New deployment\n' +
     '2. Type: Web app\n' +

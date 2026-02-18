@@ -1020,7 +1020,16 @@
     };
 
     // ── STATE ──
-    let transactions = JSON.parse(localStorage.getItem('bb_transactions') || '[]');
+    let transactions = JSON.parse(localStorage.getItem('bb_transactions') || '[]').map(t => {
+      // Normalize any corrupted data from previous pulls
+      if (t.date && !/^\d{4}-\d{2}-\d{2}$/.test(t.date)) {
+        const d = new Date(t.date);
+        if (!isNaN(d.getTime())) t.date = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+      t.amount = Number(t.amount) || 0;
+      t.month = getMonth(t.date);
+      return t;
+    });
 
 
     function save() { localStorage.setItem('bb_transactions', JSON.stringify(transactions)); }
@@ -1850,6 +1859,27 @@
       }
     }
 
+    function normalizeTransaction(t) {
+      t.id = String(t.id || Date.now());
+      // Fix date format — ensure YYYY-MM-DD
+      if (t.date && !/^\d{4}-\d{2}-\d{2}$/.test(t.date)) {
+        const d = new Date(t.date);
+        if (!isNaN(d.getTime())) {
+          t.date = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+      }
+      t.amount = Number(t.amount) || 0;
+      t.needsReview = (t.needsReview === true || t.needsReview === 'true' || t.needsReview === 'TRUE');
+      t.declined = (t.declined === true || t.declined === 'true' || t.declined === 'TRUE');
+      // Recalculate month from date to ensure consistency
+      t.month = getMonth(t.date);
+      t.card = t.card || '';
+      t.vendor = t.vendor || '';
+      t.category = t.category || 'Miscellaneous';
+      t.notes = t.notes || '';
+      return t;
+    }
+
     async function pullFromSheet() {
       if (!API.isConnected) return alert('Connect to Google Sheets first');
       if (!confirm('Download data from Google Sheets? This will replace your local data.')) return;
@@ -1859,16 +1889,14 @@
       setSyncing(false);
 
       if (result && result.success) {
-        transactions = result.transactions || [];
+        transactions = (result.transactions || []).map(normalizeTransaction);
         if (result.categories) CATEGORIES = result.categories;
         if (result.groupColors) GROUP_COLORS = result.groupColors;
         save();
         saveCategories();
         rebuildFlatCategories();
-        refreshDropdowns();
         renderAll();
-        updateSyncUI();
-        alert('Loaded ' + result.count + ' transactions from Google Sheets');
+        alert('Loaded ' + transactions.length + ' transactions from Google Sheets');
       } else {
         alert('Pull failed: ' + (result ? result.error : 'Network error'));
       }
