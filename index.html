@@ -833,8 +833,13 @@
 
   <script>
     // ── API WRAPPER ──
+    const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzBPJl1kBA38mkdOAoW48FRuROOIcHKYNuVszrmSgt_69VBzHGIXb35yfvrkZQ-U94Qog/exec';
     const API = {
-      get url() { return localStorage.getItem('bb_api_url') || ''; },
+      get url() {
+        const stored = localStorage.getItem('bb_api_url');
+        if (stored === null) return DEFAULT_API_URL;
+        return stored;
+      },
       set url(v) { localStorage.setItem('bb_api_url', v); },
       get isConnected() { return !!this.url; },
 
@@ -887,22 +892,33 @@
     }
 
     function getDataDateRange() {
+      const now = new Date();
+      const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
       if (transactions.length === 0) {
-        const now = new Date();
-        return { earliest: new Date(now.getFullYear(), now.getMonth(), 1), latest: now };
+        return { earliest: currentMonth, latest: currentMonth };
       }
-      const dates = transactions.map(t => new Date(t.date + 'T00:00:00'));
-      const min = new Date(Math.min(...dates));
-      const max = new Date(Math.max(...dates));
+
+      const validDates = transactions
+        .map(t => new Date(t.date + 'T00:00:00'))
+        .filter(d => !isNaN(d.getTime()));
+
+      if (validDates.length === 0) {
+        return { earliest: currentMonth, latest: currentMonth };
+      }
+
+      const min = new Date(Math.min(...validDates));
+      const max = new Date(Math.max(...validDates));
+      const latestMonth = new Date(max.getFullYear(), max.getMonth(), 1);
+
       return {
         earliest: new Date(min.getFullYear(), min.getMonth(), 1),
-        latest: new Date(max.getFullYear(), max.getMonth(), 1)
+        latest: latestMonth >= currentMonth ? latestMonth : currentMonth
       };
     }
 
     function computeDateRange(preset, customFrom, customTo) {
       const { earliest, latest } = getDataDateRange();
-      const now = latest;
       let from, to;
 
       if (preset === 'custom' && customFrom && customTo) {
@@ -912,13 +928,12 @@
         from = earliest;
         to = latest;
       } else if (preset === 'ytd') {
-        from = new Date(now.getFullYear(), 0, 1);
+        from = new Date(latest.getFullYear(), 0, 1);
         to = latest;
       } else {
         const monthCount = parseInt(preset);
         to = latest;
         from = new Date(to.getFullYear(), to.getMonth() - (monthCount - 1), 1);
-        if (from < earliest) from = earliest;
       }
 
       MONTHS = generateMonthRange(from, to);
@@ -1354,6 +1369,7 @@
     function renderAll() {
       // Recompute MONTHS from current transaction data so new months are included
       computeDateRange(activePreset);
+      refreshDropdowns();
       renderStats();
       renderRecentTable();
       renderTransactions();
@@ -1361,6 +1377,7 @@
       renderCards();
       renderTherapy();
       renderCharts();
+      updateSyncUI();
     }
 
     function renderStats() {
@@ -1396,7 +1413,7 @@
     }
 
     function renderRecentTable() {
-      const sorted = [...getFilteredTransactions()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
+      const sorted = [...transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
       const tbody = document.getElementById('recent-table');
       tbody.innerHTML = sorted.map(t => {
         let statusHtml = '';
@@ -1525,15 +1542,14 @@
 
     function renderCards() {
       const container = document.getElementById('cards-list');
-      const fTxns = getFilteredTransactions();
       const allCards = [...CREDIT_CARDS, 'N/A (Recurring)'];
       const cardIcons = { 'Apple': '🍎', 'Capital One Silver': '🥈', 'Capital One Blue': '🔵', 'Concora': '🟡', 'Brightway': '☀️', 'Wells Fargo': '🏦', 'N/A (Recurring)': '🔄' };
       const cardColors = { 'Apple': 'var(--peach-light)', 'Capital One Silver': 'var(--sky-light)', 'Capital One Blue': 'var(--lavender-light)', 'Concora': 'var(--yellow-light)', 'Brightway': 'var(--mint-light)', 'Wells Fargo': 'var(--coral-light)', 'N/A (Recurring)': 'var(--bg)' };
-      const total = fTxns.reduce((s, t) => s + t.amount, 0);
+      const total = transactions.reduce((s, t) => s + t.amount, 0);
 
       let html = '<div class="card-header"><span class="card-title">Spending by Card</span></div>';
       allCards.forEach(card => {
-        const cardTotal = fTxns.filter(t => t.card === card).reduce((s, t) => s + t.amount, 0);
+        const cardTotal = transactions.filter(t => t.card === card).reduce((s, t) => s + t.amount, 0);
         if (cardTotal === 0) return;
         const pct = total > 0 ? ((cardTotal / total) * 100).toFixed(1) : 0;
         html += `<div class="cc-card" style="background:${cardColors[card] || 'var(--bg)'}">
@@ -1641,9 +1657,9 @@
         options: { responsive: true, plugins: { legend: { position: 'right', labels: { font: { size: 11, family: 'DM Sans' }, boxWidth: 12, padding: 8 } } }, cutout: '65%' }
       });
 
-      // Cards pie
-      const cardTotals = CREDIT_CARDS.map(c => fTxns.filter(t => t.card === c).reduce((s, t) => s + t.amount, 0)).filter(v => v > 0);
-      const cardLabels = CREDIT_CARDS.filter((c, i) => fTxns.filter(t => t.card === c).reduce((s, t) => s + t.amount, 0) > 0);
+      // Cards pie (uses all transactions, not period-filtered)
+      const cardTotals = CREDIT_CARDS.map(c => transactions.filter(t => t.card === c).reduce((s, t) => s + t.amount, 0)).filter(v => v > 0);
+      const cardLabels = CREDIT_CARDS.filter((c, i) => transactions.filter(t => t.card === c).reduce((s, t) => s + t.amount, 0) > 0);
       const cardColors = ['#f5c6a5', '#a8d4e6', '#c7b8ea', '#f0df8a', '#b8e6d0', '#f0a8a8'];
 
       if (cardsPieChart) cardsPieChart.destroy();
@@ -1809,7 +1825,8 @@
 
     function disconnectAPI() {
       if (!confirm('Disconnect from Google Sheets? Local data will be kept.')) return;
-      localStorage.removeItem('bb_api_url');
+      localStorage.setItem('bb_api_url', '');
+      document.getElementById('api-url').value = '';
       updateSyncUI();
     }
 
