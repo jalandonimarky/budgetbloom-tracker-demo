@@ -1,0 +1,209 @@
+/**
+ * BudgetBloom — Google Sheets Backend
+ * Deploy as Web App: Execute as Me, Anyone can access
+ */
+
+// ── TRANSACTION COLUMNS ──
+const TXN_COLS = ['id', 'date', 'card', 'vendor', 'amount', 'category', 'notes', 'needsReview', 'declined', 'month'];
+
+function getSheet(name) {
+  return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+}
+
+function respond(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── WEB APP ENDPOINTS ──
+
+function doGet(e) {
+  try {
+    const action = (e && e.parameter && e.parameter.action) || 'loadAll';
+    if (action === 'ping') return respond({ status: 'ok', timestamp: new Date().toISOString() });
+    if (action === 'loadAll') return respond(loadAllData());
+    return respond({ error: 'Unknown action' });
+  } catch (err) {
+    return respond({ error: err.message });
+  }
+}
+
+function doPost(e) {
+  try {
+    const payload = JSON.parse(e.postData.contents);
+    switch (payload.action) {
+      case 'addTransaction':    return respond(addTransactionRow(payload.data));
+      case 'updateTransaction': return respond(updateTransactionRow(payload.data));
+      case 'deleteTransaction': return respond(deleteTransactionRow(payload.id));
+      case 'syncAll':           return respond(syncAllData(payload));
+      case 'saveCategories':    return respond(saveCategoriesData(payload.categories, payload.groupColors));
+      default:                  return respond({ error: 'Unknown action: ' + payload.action });
+    }
+  } catch (err) {
+    return respond({ error: err.message });
+  }
+}
+
+// ── LOAD ALL DATA ──
+
+function loadAllData() {
+  const txnSheet = getSheet('Transactions');
+  const settingsSheet = getSheet('Settings');
+
+  const transactions = [];
+  if (txnSheet && txnSheet.getLastRow() > 1) {
+    const data = txnSheet.getRange(2, 1, txnSheet.getLastRow() - 1, TXN_COLS.length).getValues();
+    data.forEach(row => {
+      if (!row[0]) return;
+      const txn = {};
+      TXN_COLS.forEach((col, i) => {
+        if (col === 'amount') txn[col] = Number(row[i]);
+        else if (col === 'needsReview' || col === 'declined') txn[col] = (row[i] === true || row[i] === 'TRUE' || row[i] === 'true');
+        else txn[col] = String(row[i]);
+      });
+      transactions.push(txn);
+    });
+  }
+
+  let categories = null, groupColors = null;
+  if (settingsSheet) {
+    try { categories = JSON.parse(settingsSheet.getRange('B1').getValue()); } catch (e) {}
+    try { groupColors = JSON.parse(settingsSheet.getRange('B2').getValue()); } catch (e) {}
+  }
+
+  return { success: true, transactions, categories, groupColors, count: transactions.length };
+}
+
+// ── INDIVIDUAL TRANSACTION OPERATIONS ──
+
+function addTransactionRow(data) {
+  const sheet = getSheet('Transactions');
+  const row = TXN_COLS.map(col => {
+    if (col === 'needsReview' || col === 'declined') return data[col] ? 'TRUE' : 'FALSE';
+    return data[col] !== undefined ? data[col] : '';
+  });
+  sheet.appendRow(row);
+  return { success: true, id: data.id };
+}
+
+function updateTransactionRow(data) {
+  const sheet = getSheet('Transactions');
+  if (sheet.getLastRow() < 2) return { success: false, error: 'No transactions' };
+
+  const ids = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(data.id)) {
+      const row = TXN_COLS.map(col => {
+        if (col === 'needsReview' || col === 'declined') return data[col] ? 'TRUE' : 'FALSE';
+        return data[col] !== undefined ? data[col] : '';
+      });
+      sheet.getRange(i + 2, 1, 1, TXN_COLS.length).setValues([row]);
+      return { success: true, id: data.id };
+    }
+  }
+  return { success: false, error: 'Transaction not found' };
+}
+
+function deleteTransactionRow(id) {
+  const sheet = getSheet('Transactions');
+  if (sheet.getLastRow() < 2) return { success: false, error: 'No transactions' };
+
+  const ids = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(id)) {
+      sheet.deleteRow(i + 2);
+      return { success: true };
+    }
+  }
+  return { success: false, error: 'Transaction not found' };
+}
+
+// ── FULL SYNC ──
+
+function syncAllData(payload) {
+  const sheet = getSheet('Transactions');
+
+  // Clear existing data (keep headers)
+  if (sheet.getLastRow() > 1) {
+    sheet.deleteRows(2, sheet.getLastRow() - 1);
+  }
+
+  // Write all transactions
+  const txns = payload.transactions || [];
+  if (txns.length > 0) {
+    const rows = txns.map(t => TXN_COLS.map(col => {
+      if (col === 'needsReview' || col === 'declined') return t[col] ? 'TRUE' : 'FALSE';
+      return t[col] !== undefined ? t[col] : '';
+    }));
+    sheet.getRange(2, 1, rows.length, TXN_COLS.length).setValues(rows);
+  }
+
+  // Save categories and colors
+  if (payload.categories || payload.groupColors) {
+    saveCategoriesData(payload.categories, payload.groupColors);
+  }
+
+  return { success: true, count: txns.length };
+}
+
+// ── CATEGORIES ──
+
+function saveCategoriesData(categories, groupColors) {
+  const sheet = getSheet('Settings');
+  if (categories) sheet.getRange('B1').setValue(JSON.stringify(categories));
+  if (groupColors) sheet.getRange('B2').setValue(JSON.stringify(groupColors));
+  return { success: true };
+}
+
+// ── INITIAL SETUP ──
+
+function initialSetup() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Transactions tab
+  let txnSheet = ss.getSheetByName('Transactions');
+  if (!txnSheet) txnSheet = ss.insertSheet('Transactions');
+
+  const headers = ['ID', 'Date', 'Card', 'Vendor', 'Amount', 'Category', 'Notes', 'NeedsReview', 'Declined', 'Month'];
+  txnSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  txnSheet.getRange(1, 1, 1, headers.length)
+    .setFontWeight('bold')
+    .setBackground('#1e293b')
+    .setFontColor('#f1f5f9');
+  txnSheet.setFrozenRows(1);
+
+  const widths = [160, 110, 150, 220, 100, 200, 200, 100, 100, 100];
+  widths.forEach((w, i) => txnSheet.setColumnWidth(i + 1, w));
+
+  // Settings tab
+  let settingsSheet = ss.getSheetByName('Settings');
+  if (!settingsSheet) settingsSheet = ss.insertSheet('Settings');
+  settingsSheet.getRange('A1').setValue('categories');
+  settingsSheet.getRange('A2').setValue('groupColors');
+  settingsSheet.getRange('A1:A2').setFontWeight('bold');
+  settingsSheet.setColumnWidth(1, 120);
+  settingsSheet.setColumnWidth(2, 600);
+
+  // Clean up
+  const sheet1 = ss.getSheetByName('Sheet1');
+  if (sheet1 && ss.getSheets().length > 1) {
+    try { ss.deleteSheet(sheet1); } catch (e) {}
+  }
+
+  SpreadsheetApp.getUi().alert(
+    '✅ BudgetBloom database is ready!\n\n' +
+    'Next step: Deploy as Web App\n' +
+    '1. Click Deploy > New deployment\n' +
+    '2. Type: Web app\n' +
+    '3. Execute as: Me\n' +
+    '4. Access: Anyone\n' +
+    '5. Click Deploy and copy the URL'
+  );
+}
+
+// ── MENU ──
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('BudgetBloom')
+    .addItem('Initial Setup', 'initialSetup')
+    .addToUi();
+}
