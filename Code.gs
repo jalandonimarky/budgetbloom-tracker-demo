@@ -60,7 +60,7 @@ function doPost(e) {
       case 'updateTransaction': return respond(updateTransactionRow(payload.data));
       case 'deleteTransaction': return respond(deleteTransactionRow(payload.id));
       case 'syncAll':           return respond(syncAllData(payload));
-      case 'saveCategories':    return respond(saveCategoriesData(payload.categories, payload.groupColors));
+      case 'saveCategories':    return respond(saveCategoriesData(payload.categories, payload.groupColors, payload.creditCards));
       default:                  return respond({ error: 'Unknown action: ' + payload.action });
     }
   } catch (err) {
@@ -99,13 +99,14 @@ function loadAllData() {
     });
   }
 
-  let categories = null, groupColors = null;
+  let categories = null, groupColors = null, creditCards = null;
   if (settingsSheet) {
     try { categories = JSON.parse(settingsSheet.getRange('B1').getValue()); } catch (e) {}
     try { groupColors = JSON.parse(settingsSheet.getRange('B2').getValue()); } catch (e) {}
+    try { creditCards = JSON.parse(settingsSheet.getRange('B3').getValue()); } catch (e) {}
   }
 
-  return { success: true, transactions, categories, groupColors, count: transactions.length };
+  return { success: true, transactions, categories, groupColors, creditCards, count: transactions.length };
 }
 
 // ── INDIVIDUAL TRANSACTION OPERATIONS ──
@@ -174,9 +175,9 @@ function syncAllData(payload) {
     range.setValues(rows);
   }
 
-  // Save categories and colors
-  if (payload.categories || payload.groupColors) {
-    saveCategoriesData(payload.categories, payload.groupColors);
+  // Save categories, colors, and credit cards
+  if (payload.categories || payload.groupColors || payload.creditCards) {
+    saveCategoriesData(payload.categories, payload.groupColors, payload.creditCards);
   }
 
   return { success: true, count: txns.length };
@@ -184,10 +185,11 @@ function syncAllData(payload) {
 
 // ── CATEGORIES ──
 
-function saveCategoriesData(categories, groupColors) {
+function saveCategoriesData(categories, groupColors, creditCards) {
   const sheet = getSheet('Settings');
   if (categories) sheet.getRange('B1').setValue(JSON.stringify(categories));
   if (groupColors) sheet.getRange('B2').setValue(JSON.stringify(groupColors));
+  if (creditCards) sheet.getRange('B3').setValue(JSON.stringify(creditCards));
   return { success: true };
 }
 
@@ -219,7 +221,8 @@ function initialSetup() {
   if (!settingsSheet) settingsSheet = ss.insertSheet('Settings');
   settingsSheet.getRange('A1').setValue('categories');
   settingsSheet.getRange('A2').setValue('groupColors');
-  settingsSheet.getRange('A1:A2').setFontWeight('bold');
+  settingsSheet.getRange('A3').setValue('creditCards');
+  settingsSheet.getRange('A1:A3').setFontWeight('bold');
   settingsSheet.setColumnWidth(1, 120);
   settingsSheet.setColumnWidth(2, 600);
 

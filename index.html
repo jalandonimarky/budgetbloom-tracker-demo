@@ -1048,7 +1048,38 @@
     };
 
     // ── DATA ──
-    const CREDIT_CARDS = ['Apple', 'Capital One Silver', 'Capital One Blue', 'Concora', 'Brightway', 'Wells Fargo'];
+    const DEFAULT_CARDS = ['Apple', 'Capital One Silver', 'Capital One Blue', 'Concora', 'Brightway', 'Wells Fargo'];
+    let CREDIT_CARDS = JSON.parse(localStorage.getItem('bb_credit_cards') || 'null') || [...DEFAULT_CARDS];
+
+    function saveCards() {
+      localStorage.setItem('bb_credit_cards', JSON.stringify(CREDIT_CARDS));
+      syncToSheet('saveCategories', { categories: CATEGORIES, groupColors: GROUP_COLORS, creditCards: CREDIT_CARDS });
+    }
+
+    function addNewCard(name) {
+      name = name.trim();
+      if (!name || CREDIT_CARDS.includes(name)) return false;
+      CREDIT_CARDS.push(name);
+      saveCards();
+      populateDropdowns();
+      renderAll();
+      return true;
+    }
+
+    function handleCardSelect(selectEl) {
+      if (selectEl.value === '__add_new__') {
+        const name = prompt('Enter credit card / account name:');
+        if (name && name.trim()) {
+          if (addNewCard(name)) {
+            selectEl.value = name.trim();
+          } else {
+            selectEl.value = CREDIT_CARDS[0];
+          }
+        } else {
+          selectEl.value = CREDIT_CARDS[0];
+        }
+      }
+    }
     const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
     // ── DATE RANGE STATE ──
@@ -1871,6 +1902,11 @@
       const cardSelect = document.getElementById('f-card');
       cardSelect.innerHTML = '';
       CREDIT_CARDS.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; cardSelect.appendChild(o); });
+      // Add new card option
+      const addOpt = document.createElement('option');
+      addOpt.value = '__add_new__'; addOpt.textContent = '➕ Add new card...'; addOpt.style.color = '#6366f1';
+      cardSelect.appendChild(addOpt);
+      cardSelect.onchange = function() { handleCardSelect(this); };
 
       populateCategorySelect(document.getElementById('f-category'));
 
@@ -2032,6 +2068,7 @@
         transactions,
         categories: CATEGORIES,
         groupColors: GROUP_COLORS,
+        creditCards: CREDIT_CARDS,
       });
       setSyncing(false);
 
@@ -2075,9 +2112,11 @@
         transactions = (result.transactions || []).map(normalizeTransaction);
         if (result.categories) CATEGORIES = result.categories;
         if (result.groupColors) GROUP_COLORS = result.groupColors;
+        if (result.creditCards) { CREDIT_CARDS = result.creditCards; localStorage.setItem('bb_credit_cards', JSON.stringify(CREDIT_CARDS)); }
         save();
         saveCategories();
         rebuildFlatCategories();
+        populateDropdowns();
         renderAll();
         alert('Loaded ' + transactions.length + ' transactions from Google Sheets');
       } else {
@@ -2098,11 +2137,13 @@
       localStorage.removeItem('bb_transactions');
       localStorage.removeItem('bb_categories');
       localStorage.removeItem('bb_group_colors');
+      localStorage.removeItem('bb_credit_cards');
       transactions = [];
       CATEGORIES = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
       GROUP_COLORS = { ...DEFAULT_GROUP_COLORS };
+      CREDIT_CARDS = [...DEFAULT_CARDS];
       rebuildFlatCategories();
-      refreshDropdowns();
+      populateDropdowns();
       renderAll();
       updateSyncUI();
     }
