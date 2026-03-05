@@ -158,9 +158,13 @@ function deleteTransactionRow(id) {
 function syncAllData(payload) {
   const sheet = getSheet('Transactions');
 
-  // Clear existing data (keep headers)
-  if (sheet.getLastRow() > 1) {
-    sheet.deleteRows(2, sheet.getLastRow() - 1);
+  // Clear existing data (keep headers, leave 1 row so Sheets doesn't error)
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 2) {
+    sheet.deleteRows(3, lastRow - 2);
+  }
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, 1, TXN_COLS.length).clearContent();
   }
 
   // Write all transactions as plain strings to prevent Sheets auto-formatting

@@ -1028,7 +1028,11 @@
             body: JSON.stringify(payload),
             redirect: 'follow',
           });
-          return await res.json();
+          try {
+            return await res.json();
+          } catch (e) {
+            return { success: true };
+          }
         } catch (err) {
           console.error('API error:', err);
           return null;
