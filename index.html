@@ -1724,8 +1724,8 @@
     function renderCategories() {
       const container = document.getElementById('categories-breakdown');
       const fTxns = getFilteredTransactions();
-      const maxAmount = Math.max(...Object.keys(CATEGORIES).map(group =>
-        CATEGORIES[group].reduce((s, cat) => s + fTxns.filter(t => t.category === cat).reduce((ss, t) => ss + t.amount, 0), 0)
+      const maxAmount = Math.max(...Object.keys(CATEGORIES).flatMap(group =>
+        CATEGORIES[group].map(cat => fTxns.filter(t => t.category === cat).reduce((s, t) => s + t.amount, 0))
       ), 1);
 
       let html = '';
