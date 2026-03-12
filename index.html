@@ -726,7 +726,7 @@
             <select id="filter-category" class="filter-select" onchange="renderTransactions()">
               <option value="">All Categories</option>
             </select>
-            <select id="filter-month" class="filter-select" onchange="renderTransactions()">
+            <select id="filter-month" class="filter-select" onchange="renderAll()">
               <option value="">All Months</option>
             </select>
             <select id="filter-review" class="filter-select" onchange="renderTransactions()">
@@ -1070,6 +1070,18 @@
       return true;
     }
 
+    function deleteCreditCard(cardName) {
+      const txnCount = transactions.filter(t => t.card === cardName).length;
+      const msg = txnCount > 0
+        ? `Delete "${cardName}"? ${txnCount} transaction(s) use this card — they will keep their card name but it won't appear in dropdowns.`
+        : `Delete "${cardName}"?`;
+      if (!confirm(msg)) return;
+      CREDIT_CARDS = CREDIT_CARDS.filter(c => c !== cardName);
+      saveCards();
+      populateDropdowns();
+      renderAll();
+    }
+
     function handleCardSelect(selectEl) {
       if (selectEl.value === '__add_new__') {
         const name = prompt('Enter credit card / account name:');
@@ -1167,6 +1179,10 @@
     }
 
     function getFilteredTransactions() {
+      const monthF = document.getElementById('filter-month').value;
+      if (monthF) {
+        return transactions.filter(t => t.month === monthF);
+      }
       return transactions.filter(t => MONTHS.includes(t.month));
     }
 
@@ -1664,13 +1680,11 @@
     function renderTransactions() {
       const cardF = document.getElementById('filter-card').value;
       const catF = document.getElementById('filter-category').value;
-      const monthF = document.getElementById('filter-month').value;
       const reviewF = document.getElementById('filter-review').value;
 
-      let filtered = [...transactions];
+      let filtered = [...getFilteredTransactions()];
       if (cardF) filtered = filtered.filter(t => t.card === cardF);
       if (catF) filtered = filtered.filter(t => t.category === catF);
-      if (monthF) filtered = filtered.filter(t => t.month === monthF);
       if (reviewF === 'yes') filtered = filtered.filter(t => t.needsReview && !t.declined);
       if (reviewF === 'no') filtered = filtered.filter(t => !t.needsReview && !t.declined);
       if (reviewF === 'declined') filtered = filtered.filter(t => t.declined);
@@ -1732,8 +1746,9 @@
       Object.entries(CATEGORIES).forEach(([group, subs]) => {
         const groupTotal = subs.reduce((s, cat) => s + fTxns.filter(t => t.category === cat).reduce((ss, t) => ss + t.amount, 0), 0);
         const isProtected = group === 'Miscellaneous';
+        const gColor = GROUP_COLORS[group] || '#6b7280';
         html += `<div style="margin-bottom:20px;">`;
-        html += `<div class="group-header-bar" style="background:${GROUP_COLORS[group]}20;">`;
+        html += `<div class="group-header-bar" style="background:${gColor}20;">`;
         html += `<div style="display:flex;align-items:center;gap:8px;">`;
         html += `<span style="font-weight:700;font-size:14px;">${group}</span>`;
         html += `<button class="btn-icon" onclick="openCatModal('add','${group.replace(/'/g, "\\'")}')" title="Add category to ${group}">+</button>`;
@@ -1751,7 +1766,7 @@
           const escapedGroup = group.replace(/'/g, "\\'");
           html += `<div class="category-row">
             <span class="category-name">${cat}</span>
-            <div class="category-bar-wrap"><div class="category-bar" style="width:${pct}%;background:${GROUP_COLORS[group]};"></div></div>
+            <div class="category-bar-wrap"><div class="category-bar" style="width:${pct}%;background:${gColor};"></div></div>
             <span class="category-amount">${fmt(catTotal)}</span>
             <span class="category-avg">${fmt(catTotal / rangeMonthCount)}/mo</span>
             <div class="cat-sub-actions">
@@ -1777,8 +1792,13 @@
       let html = '<div class="card-header"><span class="card-title">Spending by Card</span></div>';
       allCards.forEach(card => {
         const cardTotal = fTxns.filter(t => t.card === card).reduce((s, t) => s + t.amount, 0);
-        if (cardTotal === 0) return;
+        const isRecurring = card === 'N/A (Recurring)';
+        const showCard = cardTotal > 0 || (!isRecurring && CREDIT_CARDS.includes(card));
+        if (!showCard) return;
         const pct = total > 0 ? ((cardTotal / total) * 100).toFixed(1) : 0;
+        const deleteBtn = !isRecurring
+          ? `<button class="btn-icon danger" onclick="deleteCreditCard('${card.replace(/'/g, "\\'")}')" title="Delete card" style="margin-left:8px;font-size:14px;">✕</button>`
+          : '';
         html += `<div class="cc-card" style="background:${cardColors[card] || 'var(--bg)'}">
           <div class="cc-icon" style="background:white;font-size:22px;">${cardIcons[card] || '💳'}</div>
           <div class="cc-info">
@@ -1786,6 +1806,7 @@
             <div class="cc-pct">${pct}% of total</div>
           </div>
           <div class="cc-amount">${fmt(cardTotal)}</div>
+          ${deleteBtn}
         </div>`;
       });
       container.innerHTML = html;
@@ -2116,9 +2137,15 @@
         transactions = (result.transactions || []).map(normalizeTransaction);
         if (result.categories) CATEGORIES = result.categories;
         if (result.groupColors) GROUP_COLORS = result.groupColors;
+        // Ensure every category group has a color
+        Object.keys(CATEGORIES).forEach(g => {
+          if (!GROUP_COLORS[g]) GROUP_COLORS[g] = '#6b7280';
+        });
         if (result.creditCards) { CREDIT_CARDS = result.creditCards; localStorage.setItem('bb_credit_cards', JSON.stringify(CREDIT_CARDS)); }
+        // Save to localStorage without syncing back to sheet
         save();
-        saveCategories();
+        localStorage.setItem('bb_categories', JSON.stringify(CATEGORIES));
+        localStorage.setItem('bb_group_colors', JSON.stringify(GROUP_COLORS));
         rebuildFlatCategories();
         populateDropdowns();
         renderAll();
