@@ -556,7 +556,9 @@
     .txn-header-btns { display: flex; gap: 8px; flex-shrink: 0; }
     .cat-page-header { display: flex; justify-content: space-between; align-items: flex-start; }
     .filter-card { margin-bottom: 16px; }
-    .filter-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .filter-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .custom-date-filter { display: flex; flex-direction: column; gap: 3px; }
+    .custom-date-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
     .filter-select {
       padding: 8px 12px; border: 1.5px solid rgba(15,23,42,0.1); border-radius: 8px;
       font-family: 'DM Sans'; font-size: 13px; background: var(--bg); color: var(--text);
@@ -639,13 +641,6 @@
             <button class="period-btn active" data-months="12">12M</button>
             <button class="period-btn" data-months="ytd">YTD</button>
             <button class="period-btn" data-months="all">All</button>
-            <button class="period-btn" data-months="custom">Custom</button>
-          </div>
-          <div id="custom-range" style="display:none; margin-bottom:8px;">
-            <label style="font-size:10px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">From</label>
-            <input type="month" id="range-from" style="width:100%; padding:6px 8px; border:1.5px solid rgba(148,163,184,0.2); border-radius:6px; font-family:'DM Sans'; font-size:12px; background:rgba(30,41,59,0.5); color:#cbd5e1; margin-bottom:6px;" />
-            <label style="font-size:10px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.06em;">To</label>
-            <input type="month" id="range-to" style="width:100%; padding:6px 8px; border:1.5px solid rgba(148,163,184,0.2); border-radius:6px; font-family:'DM Sans'; font-size:12px; background:rgba(30,41,59,0.5); color:#cbd5e1;" />
           </div>
           <div id="period-label" style="font-size:11px; color:#64748b; line-height:1.5;">
             <strong id="period-range-text" style="color:#cbd5e1; font-size:12px;">—</strong><br>
@@ -735,6 +730,21 @@
               <option value="no">Approved</option>
               <option value="declined">Declined</option>
             </select>
+          </div>
+          <div class="filter-row" style="margin-top:10px;">
+            <div class="custom-date-filter">
+              <label class="custom-date-label">From</label>
+              <select id="range-from" class="filter-select" onchange="applyCustomRange()">
+                <option value="">Start</option>
+              </select>
+            </div>
+            <div class="custom-date-filter">
+              <label class="custom-date-label">To</label>
+              <select id="range-to" class="filter-select" onchange="applyCustomRange()">
+                <option value="">End</option>
+              </select>
+            </div>
+            <button class="btn btn-secondary" onclick="clearCustomRange()" style="font-size:12px;padding:6px 14px;">Clear Range</button>
           </div>
         </div>
 
@@ -1100,6 +1110,8 @@
 
     // ── DATE RANGE STATE ──
     let activePreset = '12';
+    let activeCustomFrom = null;
+    let activeCustomTo = null;
     let MONTHS = [];
     let rangeMonthCount = 0;
 
@@ -1166,6 +1178,8 @@
 
     function applyDateRange(preset, customFrom, customTo) {
       activePreset = preset;
+      activeCustomFrom = customFrom || null;
+      activeCustomTo = customTo || null;
       computeDateRange(preset, customFrom, customTo);
       renderAll();
     }
@@ -1610,8 +1624,9 @@
     // ── RENDER ──
     function renderAll() {
       // Recompute MONTHS from current transaction data so new months are included
-      computeDateRange(activePreset);
+      computeDateRange(activePreset, activeCustomFrom, activeCustomTo);
       refreshDropdowns();
+      populateCustomRangeSelects();
       renderStats();
       renderRecentTable();
       renderTransactions();
@@ -1999,22 +2014,52 @@
         this.classList.add('active');
         const val = this.dataset.months;
 
-        if (val === 'custom') {
-          document.getElementById('custom-range').style.display = 'block';
-          return;
-        }
-        document.getElementById('custom-range').style.display = 'none';
         applyDateRange(val);
       });
     });
 
-    document.getElementById('range-from').addEventListener('change', applyCustomRange);
-    document.getElementById('range-to').addEventListener('change', applyCustomRange);
+    function populateCustomRangeSelects() {
+      const { earliest, latest } = getDataDateRange();
+      const allMonths = generateMonthRange(earliest, latest);
+      const fromSelect = document.getElementById('range-from');
+      const toSelect = document.getElementById('range-to');
+      const fromVal = fromSelect.value;
+      const toVal = toSelect.value;
+
+      fromSelect.innerHTML = '<option value="">Start</option>';
+      toSelect.innerHTML = '<option value="">End</option>';
+
+      allMonths.forEach(m => {
+        const parts = m.split(' ');
+        const mi = MONTH_NAMES.indexOf(parts[0]);
+        const val = parts[1] + '-' + String(mi + 1).padStart(2, '0');
+        const oFrom = document.createElement('option'); oFrom.value = val; oFrom.textContent = m; fromSelect.appendChild(oFrom);
+        const oTo = document.createElement('option'); oTo.value = val; oTo.textContent = m; toSelect.appendChild(oTo);
+      });
+
+      if (fromVal) fromSelect.value = fromVal;
+      if (toVal) toSelect.value = toVal;
+    }
 
     function applyCustomRange() {
       const from = document.getElementById('range-from').value;
       const to = document.getElementById('range-to').value;
-      if (from && to) applyDateRange('custom', from, to);
+      const effectiveFrom = from || to;
+      const effectiveTo = to || from;
+      if (effectiveFrom && effectiveTo) {
+        document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+        applyDateRange('custom', effectiveFrom, effectiveTo);
+      }
+    }
+
+    function clearCustomRange() {
+      document.getElementById('range-from').value = '';
+      document.getElementById('range-to').value = '';
+      activeCustomFrom = null;
+      activeCustomTo = null;
+      document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector('.period-btn[data-months="12"]').classList.add('active');
+      applyDateRange('12');
     }
 
     // ── GOOGLE SHEETS SYNC ──
