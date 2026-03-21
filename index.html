@@ -713,6 +713,13 @@
           </div>
         </div>
 
+        <div class="card filter-card" style="margin-bottom:8px;">
+          <div style="position:relative;">
+            <input type="text" id="search-txn" placeholder="Search transactions..." oninput="renderTransactions()" style="width:100%;padding:12px 16px 12px 40px;border:1.5px solid rgba(15,23,42,0.1);border-radius:var(--radius-sm);font-family:'DM Sans';font-size:15px;background:var(--bg);color:var(--text);outline:none;transition:border-color 0.2s,box-shadow 0.2s;" onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px rgba(232,128,154,0.1)'" onblur="this.style.borderColor='rgba(15,23,42,0.1)';this.style.boxShadow='none'" />
+            <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:16px;opacity:0.4;">🔍</span>
+          </div>
+        </div>
+
         <div class="card filter-card">
           <div class="filter-row">
             <select id="filter-card" class="filter-select" onchange="renderTransactions()">
@@ -897,7 +904,7 @@
         <div class="form-row">
           <div class="form-group">
             <label>Date</label>
-            <input type="date" id="f-date" required />
+            <input type="text" id="f-date" placeholder="MM/DD/YYYY or YYYY-MM-DD" required autocomplete="off" />
           </div>
           <div class="form-group">
             <label>Credit Card / Account</label>
@@ -1696,6 +1703,7 @@
       const cardF = document.getElementById('filter-card').value;
       const catF = document.getElementById('filter-category').value;
       const reviewF = document.getElementById('filter-review').value;
+      const searchQ = (document.getElementById('search-txn')?.value || '').trim().toLowerCase();
 
       let filtered = [...getFilteredTransactions()];
       if (cardF) filtered = filtered.filter(t => t.card === cardF);
@@ -1703,6 +1711,14 @@
       if (reviewF === 'yes') filtered = filtered.filter(t => t.needsReview && !t.declined);
       if (reviewF === 'no') filtered = filtered.filter(t => !t.needsReview && !t.declined);
       if (reviewF === 'declined') filtered = filtered.filter(t => t.declined);
+      if (searchQ) filtered = filtered.filter(t =>
+        (t.vendor || '').toLowerCase().includes(searchQ) ||
+        (t.card || '').toLowerCase().includes(searchQ) ||
+        (t.category || '').toLowerCase().includes(searchQ) ||
+        (t.notes || '').toLowerCase().includes(searchQ) ||
+        (t.date || '').includes(searchQ) ||
+        String(t.amount).includes(searchQ)
+      );
 
       filtered.sort((a, b) => b.date.localeCompare(a.date));
 
@@ -2006,6 +2022,89 @@
       const cat = autoCategory(this.value);
       if (cat) document.getElementById('f-category').value = cat;
     });
+
+    // ── DATE INPUT: accept paste in any common format, normalize to YYYY-MM-DD ──
+    (function() {
+      const dateInput = document.getElementById('f-date');
+
+      function parseFlexibleDate(str) {
+        str = str.trim();
+        // YYYY-MM-DD
+        if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(str)) {
+          const [y,m,d] = str.split('-');
+          return { y: parseInt(y), m: parseInt(m), d: parseInt(d) };
+        }
+        // MM/DD/YYYY or MM-DD-YYYY
+        if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(str)) {
+          const parts = str.split(/[\/\-]/);
+          return { y: parseInt(parts[2]), m: parseInt(parts[0]), d: parseInt(parts[1]) };
+        }
+        // DD/MM/YYYY — try if month > 12 swap
+        // M/D/YY or MM/DD/YY
+        if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2}$/.test(str)) {
+          const parts = str.split(/[\/\-]/);
+          const yr = parseInt(parts[2]) + 2000;
+          return { y: yr, m: parseInt(parts[0]), d: parseInt(parts[1]) };
+        }
+        // Try native Date parse as fallback
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+          return { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() };
+        }
+        return null;
+      }
+
+      function formatDate(y, m, d) {
+        return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      }
+
+      function validateAndFormat() {
+        const val = dateInput.value.trim();
+        if (!val) return;
+        const parsed = parseFlexibleDate(val);
+        if (parsed && parsed.y > 1990 && parsed.y < 2100 && parsed.m >= 1 && parsed.m <= 12 && parsed.d >= 1 && parsed.d <= 31) {
+          dateInput.value = formatDate(parsed.y, parsed.m, parsed.d);
+          dateInput.style.borderColor = 'rgba(15,23,42,0.1)';
+        } else {
+          dateInput.style.borderColor = '#ef4444';
+        }
+      }
+
+      dateInput.addEventListener('paste', function() {
+        setTimeout(validateAndFormat, 10);
+      });
+      dateInput.addEventListener('blur', validateAndFormat);
+
+      // Wrap input + calendar button in a relative container
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'position:relative;display:flex;align-items:center;';
+      dateInput.parentNode.insertBefore(wrapper, dateInput);
+      wrapper.appendChild(dateInput);
+
+      const nativePicker = document.createElement('input');
+      nativePicker.type = 'date';
+      nativePicker.style.cssText = 'position:absolute;opacity:0;width:0;height:0;pointer-events:none;';
+      wrapper.appendChild(nativePicker);
+
+      const calBtn = document.createElement('button');
+      calBtn.type = 'button';
+      calBtn.textContent = '📅';
+      calBtn.style.cssText = 'position:absolute;right:4px;width:36px;height:36px;border:none;background:var(--bg);border-radius:8px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:background 0.2s;';
+      calBtn.onmouseover = function() { this.style.background = 'var(--accent-light)'; };
+      calBtn.onmouseout = function() { this.style.background = 'var(--bg)'; };
+      calBtn.onclick = function(e) { e.preventDefault(); e.stopPropagation(); nativePicker.showPicker ? nativePicker.showPicker() : nativePicker.click(); };
+      wrapper.appendChild(calBtn);
+
+      // Add right padding to input so text doesn't go under the button
+      dateInput.style.paddingRight = '44px';
+
+      nativePicker.addEventListener('change', function() {
+        if (this.value) {
+          dateInput.value = this.value;
+          dateInput.style.borderColor = 'rgba(15,23,42,0.1)';
+        }
+      });
+    })();
 
     // ── DATE RANGE PICKER ──
     document.querySelectorAll('.period-btn').forEach(btn => {
